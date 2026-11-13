@@ -19,6 +19,8 @@ from openpyxl import Workbook
 from .storage import Store
 from .engine import split_terms, suggest_conditions, evaluate
 from .semantic import LocalSemanticService
+from .ocr import LocalOcrService
+from starlette.concurrency import run_in_threadpool
 from .parsing import ParseError, expand_upload, extract_pages, extract_identity, MAX_ARCHIVE
 
 FRONTEND=Path(__file__).resolve().parents[1]/'frontend'
@@ -78,12 +80,13 @@ def create_app(data_dir:Path|None=None):
     root=Path(data_dir or os.environ.get('HUIYAN_DATA_DIR',str(Path(__file__).resolve().parents[1]/'data')))
     store=Store(root)
     semantic=LocalSemanticService()
-    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.2.0')
+    ocr=LocalOcrService()
+    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.3.0')
 
     @app.get('/api/health')
     def health():
         return {'ok':True,'product':'慧眼','mode':'hybrid_retrieval_v0.2','offline':True,
-                'semantic':semantic.status()}
+                'semantic':semantic.status(),'ocr':ocr.status()}
 
     @app.post('/api/criteria/suggest')
     def criteria_suggest(payload:DescriptionInput):
@@ -136,7 +139,7 @@ def create_app(data_dir:Path|None=None):
 
     @app.post('/api/tasks/{task_id}/resumes')
     async def import_resumes(task_id:int,files:list[UploadFile]=File(...)):
-        imported=[]; issues=[]; duplicates=0
+        imported=[]; issues=[]; warnings=[]; duplicates=0
         with store.connect() as cn:
             get_task(cn,task_id)
             for upload in files:
@@ -160,7 +163,7 @@ def create_app(data_dir:Path|None=None):
                         cn.execute('INSERT INTO imports(task_id,filename,state,message) VALUES(?,?,?,?)',(task_id,name,'重复','文件内容重复'))
                         continue
                     try:
-                        pages=extract_pages(name,content)
+                        pages=await run_in_threadpool(extract_pages,name,content,ocr)
                         person=extract_identity(pages,name)
                     except ParseError as exc:
                         issues.append({'filename':name,'message':str(exc)})
@@ -171,8 +174,16 @@ def create_app(data_dir:Path|None=None):
                     cn.execute('INSERT INTO resumes(task_id,filename,content_hash,stored_file,name,phone,email,pages_json) VALUES(?,?,?,?,?,?,?,?)',
                         (task_id,name,file_hash,stored_file,person['name'],person['phone'],person['email'],dumps(pages)))
                     imported.append(name)
-                    cn.execute('INSERT INTO imports(task_id,filename,state,message) VALUES(?,?,?,?)',(task_id,name,'成功',''))
-        return {'imported':len(imported),'duplicates':duplicates,'issues':issues,'filenames':imported[:20]}
+                    caution=[p for p in pages if p.get('warning')]
+                    if caution:
+                        count_ocr=sum(p.get('source')=='ocr' for p in caution)
+                        notice=f'{len(caution)} 页需要核对，含 {count_ocr} 页 OCR 识别文字'
+                        warnings.append({'filename':name,'message':notice})
+                    else:
+                        notice=''
+                    cn.execute('INSERT INTO imports(task_id,filename,state,message) VALUES(?,?,?,?)',
+                        (task_id,name,'需核实' if caution else '成功',notice))
+        return {'imported':len(imported),'duplicates':duplicates,'issues':issues,'warnings':warnings,'ocr_status':ocr.status(),'filenames':imported[:20]}
 
     @app.get('/api/tasks/{task_id}/resumes')
     def list_resumes(task_id:int):
@@ -275,7 +286,7 @@ def create_app(data_dir:Path|None=None):
     def results(task_id:int,run_id:int):
         with store.connect() as cn:
             run=get_run(cn,task_id,run_id)
-            query='''SELECT r.id AS resume_id,r.name,r.filename,r.phone,r.email,
+            query='''SELECT r.id AS resume_id,r.name,r.filename,r.phone,r.email,r.pages_json,
                   e.results_json,rv.status AS review_status,rv.note AS review_note
                   FROM evaluations e JOIN resumes r ON r.id=e.resume_id
                   LEFT JOIN reviews rv ON rv.task_id=r.task_id AND rv.resume_id=r.id
@@ -283,6 +294,9 @@ def create_app(data_dir:Path|None=None):
             records=[]
             for row in cn.execute(query,(run_id,task_id)):
                 d=dict(row)
+                page_records=json.loads(d.pop('pages_json'))
+                d['ocr_pages']=sum(p.get('source')=='ocr' for p in page_records)
+                d['parse_warnings']=sum(bool(p.get('warning')) for p in page_records)
                 d['evaluation']=json.loads(d.pop('results_json'))
                 d['review_status']=d['review_status'] or '未审核'
                 d['review_note']=d['review_note'] or ''

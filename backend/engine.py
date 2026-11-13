@@ -110,7 +110,7 @@ def find_evidence(term: str, pages: list[dict]) -> dict | None:
                 idx = sentence.lower().find(alias.lower())
                 excerpt=(sentence[max(0,idx-70):idx+len(alias)+140] if idx>=0 else sentence[:220])
                 excerpt=re.sub(r"\s+", " ", excerpt).strip()
-                return {"term": term, "matched_text": alias, "page": page.get("page", 1), "excerpt": excerpt}
+                return {"term": term, "matched_text": alias, "page": page.get("page", 1), "excerpt": excerpt, "source": page.get("source", "text")}
     return None
 
 
@@ -118,7 +118,7 @@ def evaluate(required: list[str], preferred: list[str], pages: list[dict], seman
     checks=[]
     for term, kind in [(x, "required") for x in required]+[(x, "preferred") for x in preferred]:
         evidence=find_evidence(term,pages)
-        checks.append({"term":term,"kind":kind,"state":"有相关文字" if evidence else "待核实",
+        checks.append({"term":term,"kind":kind,"state":("OCR文字待核实" if evidence and evidence.get("source")=="ocr" else "有相关文字" if evidence else "待核实"),
                        "evidence":evidence,"semantic_hint":None})
     if semantic_matcher is not None:
         missing = [c['term'] for c in checks if not c['evidence']]
@@ -133,7 +133,7 @@ def evaluate(required: list[str], preferred: list[str], pages: list[dict], seman
     required_found=sum(x["state"]=="有相关文字" for x in must)
     # Ratio is an evidence search indicator, not aptitude, probability, or truth.
     total=len(checks)
-    coverage=round(len(good)/total*100) if total else 0
+    coverage=round(sum(bool(c["evidence"]) for c in checks)/total*100) if total else 0
     if must and required_found==len(must):
         group="优先查看"
     elif not must and good:
@@ -142,6 +142,6 @@ def evaluate(required: list[str], preferred: list[str], pages: list[dict], seman
         group="需要确认"
     hint_count=sum(bool(c["semantic_hint"]) for c in checks)
     return {"group":group,"evidence_coverage":coverage,"checks":checks,
-            "matched_count":len(good),"required_met_textually":required_found,
+            "matched_count":sum(bool(c["evidence"]) for c in checks),"required_met_textually":required_found,
             "semantic_hint_count":hint_count,
             "sort_key":required_found*10+sum(x["state"]=="有相关文字" for x in checks if x["kind"]=="preferred")+min(hint_count,5)*0.01}

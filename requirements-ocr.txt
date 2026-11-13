@@ -1,0 +1,5 @@
+-r requirements.txt
+# Optional OCR only; base installation stays lean and works offline after setup.
+pypdfium2>=4.30,<6
+pytesseract>=0.3.13,<1
+Pillow>=10,<13
