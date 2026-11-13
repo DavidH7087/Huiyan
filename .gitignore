@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+node_modules/
+dist/
+build/
+*.sqlite*
+data/
+!.gitkeep
+*.log
+.env
+*.zip
+.DS_Store
