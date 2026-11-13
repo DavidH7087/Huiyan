@@ -61,7 +61,7 @@ def suggest_conditions(description: str) -> dict:
             continue
         is_preferred = any(x in clause for x in ("最好", "优先", "加分", "更好", "期望"))
         for canonical, synonyms in ALIASES.items():
-            if any(normalise(s) in normalise(clause) for s in (canonical, *synonyms)):
+            if any(_contains_alias(clause, synonym) for synonym in (canonical, *synonyms)):
                 target = preferred if is_preferred else required
                 if canonical not in target:
                     target.append(canonical)
@@ -85,38 +85,49 @@ def _looks_negated(source: str, alias: str) -> bool:
     return False
 
 
+def _contains_alias(text: str, alias: str) -> bool:
+    token=normalise(alias)
+    if not token:
+        return False
+    # Keep word boundaries: Java must not match JavaScript.
+    if re.fullmatch(r'[a-z0-9\s]+', alias.strip().lower()):
+        pattern=r'(?<![a-z0-9])'+r'\s*'.join(re.escape(part) for part in alias.lower().split())+r'(?![a-z0-9])'
+        return re.search(pattern,text.lower()) is not None
+    return token in normalise(text)
+
+
 def find_evidence(term: str, pages: list[dict]) -> dict | None:
     aliases = sorted(alias_options(term), key=len, reverse=True)
     for page in pages:
         original = page.get("text", "")
-        normalized = normalise(original)
-        for alias in aliases:
-            found = normalise(alias)
-            if not found or found not in normalized:
+        sentences = re.split(r"[。！？!?\n；;]+", original)
+        for sentence in sentences:
+            if not sentence.strip():
                 continue
-            # Avoid promoting explicitly negative statements to positive evidence.
-            # Use the current sentence rather than the entire resume.
-            sentences = re.split(r"[。！？!?\n；;]+", original)
-            if any(normalise(alias) in normalise(sentence) and _looks_negated(sentence,alias)
-                   for sentence in sentences):
-                # If ambiguous, err on the side of requiring human verification.
-                continue
-            # Attempt a readable excerpt centred on the raw alias. Fallback to first text.
-            idx = original.lower().find(alias.lower())
-            if idx == -1:
-                excerpt = original[:180]
-            else:
-                excerpt = original[max(0, idx - 65):idx + len(alias) + 110]
-            excerpt = re.sub(r"\s+", " ", excerpt).strip()
-            return {"term": term, "matched_text": alias, "page": page.get("page", 1), "excerpt": excerpt}
+            for alias in aliases:
+                if not _contains_alias(sentence, alias) or _looks_negated(sentence, alias):
+                    continue
+                idx = sentence.lower().find(alias.lower())
+                excerpt=(sentence[max(0,idx-70):idx+len(alias)+140] if idx>=0 else sentence[:220])
+                excerpt=re.sub(r"\s+", " ", excerpt).strip()
+                return {"term": term, "matched_text": alias, "page": page.get("page", 1), "excerpt": excerpt}
     return None
 
 
-def evaluate(required: list[str], preferred: list[str], pages: list[dict]) -> dict:
+def evaluate(required: list[str], preferred: list[str], pages: list[dict], semantic_matcher=None) -> dict:
     checks=[]
     for term, kind in [(x, "required") for x in required]+[(x, "preferred") for x in preferred]:
         evidence=find_evidence(term,pages)
-        checks.append({"term":term,"kind":kind,"state":"有相关文字" if evidence else "待核实","evidence":evidence})
+        checks.append({"term":term,"kind":kind,"state":"有相关文字" if evidence else "待核实",
+                       "evidence":evidence,"semantic_hint":None})
+    if semantic_matcher is not None:
+        missing = [c['term'] for c in checks if not c['evidence']]
+        hints = semantic_matcher.search_many(missing, pages) if missing else {}
+        for check in checks:
+            if not check['evidence'] and check['term'] in hints:
+                check['semantic_hint'] = hints[check['term']]
+                check['state'] = '语义相关待核实'
+
     must=[x for x in checks if x["kind"]=="required"]
     good=[x for x in checks if x["state"]=="有相关文字"]
     required_found=sum(x["state"]=="有相关文字" for x in must)
@@ -129,6 +140,8 @@ def evaluate(required: list[str], preferred: list[str], pages: list[dict]) -> di
         group="优先查看"
     else:
         group="需要确认"
+    hint_count=sum(bool(c["semantic_hint"]) for c in checks)
     return {"group":group,"evidence_coverage":coverage,"checks":checks,
             "matched_count":len(good),"required_met_textually":required_found,
-            "sort_key":required_found*10+sum(x["state"]=="有相关文字" for x in checks if x["kind"]=="preferred")}
+            "semantic_hint_count":hint_count,
+            "sort_key":required_found*10+sum(x["state"]=="有相关文字" for x in checks if x["kind"]=="preferred")+min(hint_count,5)*0.01}

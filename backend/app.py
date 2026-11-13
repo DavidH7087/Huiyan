@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from openpyxl import Workbook
 from .storage import Store
 from .engine import split_terms, suggest_conditions, evaluate
+from .semantic import LocalSemanticService
 from .parsing import ParseError, expand_upload, extract_pages, extract_identity, MAX_ARCHIVE
 
 FRONTEND=Path(__file__).resolve().parents[1]/'frontend'
@@ -43,6 +44,7 @@ class RunCreate(BaseModel):
     query: str=Field(default='',max_length=3000)
     scope: Literal['all','parent']='all'
     parent_id: int|None=None
+    source_filter: Literal['全部','优先查看','需要确认','面试名单']='全部'
 
 class ReviewPatch(BaseModel):
     status: Literal['未审核','加入面试名单','需要补充资料','暂不推进']
@@ -75,11 +77,13 @@ def get_run(cn,task_id,run_id):
 def create_app(data_dir:Path|None=None):
     root=Path(data_dir or os.environ.get('HUIYAN_DATA_DIR',str(Path(__file__).resolve().parents[1]/'data')))
     store=Store(root)
-    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.1.0')
+    semantic=LocalSemanticService()
+    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.2.0')
 
     @app.get('/api/health')
     def health():
-        return {'ok':True,'product':'慧眼','mode':'local_evidence_v1','offline':True}
+        return {'ok':True,'product':'慧眼','mode':'hybrid_retrieval_v0.2','offline':True,
+                'semantic':semantic.status()}
 
     @app.post('/api/criteria/suggest')
     def criteria_suggest(payload:DescriptionInput):
@@ -219,15 +223,35 @@ def create_app(data_dir:Path|None=None):
             if payload.parent_id:
                 get_run(cn,task_id,payload.parent_id)
             ids=None
+            if payload.source_filter!='全部' and payload.scope!='parent':
+                raise HTTPException(400,'只有基于上一轮的筛选才能限定候选人范围')
             if payload.scope=='parent':
-                ids=[r[0] for r in cn.execute('SELECT resume_id FROM evaluations WHERE run_id=?',(payload.parent_id,))]
+                parent_records=cn.execute("""SELECT e.resume_id,e.results_json,rv.status AS review_status
+                    FROM evaluations e JOIN resumes r ON r.id=e.resume_id
+                    LEFT JOIN reviews rv ON rv.task_id=r.task_id AND rv.resume_id=r.id
+                    WHERE e.run_id=? AND r.task_id=?""",(payload.parent_id,task_id)).fetchall()
+                ids=[]
+                for record in parent_records:
+                    if payload.source_filter=='面试名单' and record['review_status']!='加入面试名单':
+                        continue
+                    if payload.source_filter in ('优先查看','需要确认'):
+                        if json.loads(record['results_json'])['group']!=payload.source_filter:
+                            continue
+                    ids.append(record['resume_id'])
             terms=task['required']+task['preferred']
             new=suggest_conditions(payload.query)
             additional=[x for x in new['required']+new['preferred'] if x not in terms]
+            # A free-form follow-up must be searchable even without a term in our
+            # small vocabulary. It remains a *soft* criterion awaiting HR review.
+            if payload.query.strip() and not additional:
+                additional=[payload.query.strip()[:180]]
             # Added query terms are soft evidence signals, never new hard criteria automatically.
             required=task['required']
             preferred=list(dict.fromkeys(task['preferred']+additional))
-            criteria={'required':required,'preferred':preferred,'query':payload.query,'engine':'local_evidence_v1'}
+            matcher=semantic.get_matcher()
+            criteria={'required':required,'preferred':preferred,'query':payload.query,
+                      'engine':'hybrid_retrieval_v0.2' if matcher else 'local_evidence_v1',
+                      'semantic':semantic.status(), 'source_filter':payload.source_filter}
             cur=cn.execute('INSERT INTO runs(task_id,parent_id,name,query,scope,criteria_json) VALUES(?,?,?,?,?,?)',
                  (task_id,payload.parent_id,payload.name,payload.query,payload.scope,dumps(criteria)))
             run_id=cur.lastrowid
@@ -236,10 +260,14 @@ def create_app(data_dir:Path|None=None):
             elif not ids:
                 source=[]
             else:
-                params=','.join('?' for _ in ids)
-                source=cn.execute(f'SELECT id,pages_json FROM resumes WHERE task_id=? AND id IN ({params})',(task_id,*ids)).fetchall()
+                # Avoid an unbounded IN(?,?,...) and SQLite's variable limit.
+                valid_ids=set(ids)
+                source=[r for r in cn.execute("""SELECT r.id,r.pages_json FROM resumes r
+                     JOIN evaluations e ON e.resume_id=r.id
+                     WHERE r.task_id=? AND e.run_id=?""",(task_id,payload.parent_id))
+                        if r['id'] in valid_ids]
             for resume in source:
-                score=evaluate(required,preferred,json.loads(resume['pages_json']))
+                score=evaluate(required,preferred,json.loads(resume['pages_json']),semantic_matcher=matcher)
                 cn.execute('INSERT INTO evaluations(run_id,resume_id,results_json) VALUES(?,?,?)',(run_id,resume['id'],dumps(score)))
             return {'id':run_id,'name':payload.name,'candidate_count':len(source),'criteria':criteria}
 

@@ -38,3 +38,26 @@ def test_txt_chinese():
 def test_negative_sentence_is_not_positive_evidence():
     result=evaluate(['B2B销售'],[],[{'page':1,'text':'没有 B2B 销售经历。'}])
     assert result['checks'][0]['state']=='待核实'
+
+
+def test_java_not_confused_with_javascript():
+    data = evaluate(['Java'],[],[{'page':1,'text':'熟悉 JavaScript 和 TypeScript，开发前端页面。'}])
+    assert data['checks'][0]['state']=='待核实'
+    positive = evaluate(['Java'],[],[{'page':1,'text':'负责 Java Spring Boot 服务开发。'}])
+    assert positive['checks'][0]['evidence']['matched_text'] in ('Java','java','spring boot','springboot')
+
+
+def test_evidence_quote_must_be_from_matching_sentence():
+    data = evaluate(['客户开发'],[],[{'page':3,'text':'曾任前台岗位。\n负责独立开发客户和客户拜访。'}])
+    assert '开发客户' in data['checks'][0]['evidence']['excerpt']
+    assert '前台岗位' not in data['checks'][0]['evidence']['excerpt']
+
+
+def test_technical_alias_with_spaces():
+    data=evaluate(['Java'],[],[{'page':1,'text':'独立负责 Spring Boot 项目开发。'}])
+    assert data['checks'][0]['evidence']['matched_text'] == 'spring boot'
+
+
+def test_description_does_not_misread_javascript_as_java():
+    rules=suggest_conditions('岗位要求有 JavaScript 前端开发经验')
+    assert 'Java' not in rules['required']

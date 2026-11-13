@@ -1,0 +1,3 @@
+-r requirements.txt
+# Optional, large dependencies. Install only when enabling LOCAL semantic models.
+sentence-transformers>=4.1,<6
