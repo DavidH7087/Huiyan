@@ -100,7 +100,7 @@ def create_app(data_dir:Path|None=None):
     store=Store(root)
     semantic=LocalSemanticService()
     ocr=LocalOcrService()
-    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.4.0')
+    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.5.0-preview')
 
     @app.get('/api/health')
     def health():

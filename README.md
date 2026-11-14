@@ -2,7 +2,7 @@
 
 面向中国企业 HR 的**简洁、离线优先**的批量简历筛选软件。
 
-> **开发状态：v0.4 可运行的本地原型。** 目前具备 PDF/DOCX/TXT/ZIP 导入、文字证据检索、招聘任务/历史、人工审核、Excel 导出。**可选接入本地 BGE-M3 / Reranker**（需额外安装、配置且未做真实模型性能验收）；**已增加可选本地 Tesseract OCR**（扫描件需主动开启，识别文本需人工核对）；**尚未集成** SmartResume、PaddleOCR、Qwen；**尚未打包 Windows 安装程序**。不应将当前文字匹配结果用作自动淘汰或录用决定。
+> **开发状态：v0.5-preview 可运行的本地原型。** 目前具备 PDF/DOCX/TXT/ZIP 导入、文字证据检索、招聘任务/历史、人工审核、Excel 导出。**可选接入本地 BGE-M3 / Reranker**（需额外安装、配置且未做真实模型性能验收）；**已增加可选本地 Tesseract OCR**（扫描件需主动开启，识别文本需人工核对）；**尚未集成** SmartResume、PaddleOCR、Qwen；**尚未打包 Windows 安装程序**。不应将当前文字匹配结果用作自动淘汰或录用决定。
 
 ## 在 GitHub Codespaces 运行
 
@@ -79,6 +79,10 @@ python -m pytest -q
 ## Windows 安装器预览版（Phase 3E）
 
 Windows 工作流另构建 Inno Setup 单文件安装包 `Huiyan-Setup-0.5.0-preview.exe`，并做静默安装后的 EXE 本机启动测试；使用 Windows 用户级目录安装，不需要管理员权限。卸载程序**不会自动擦除候选人档案**，数据仍在 `%LOCALAPPDATA%\Huiyan\data`。见 [`docs/INSTALLER_BUILD.md`](docs/INSTALLER_BUILD.md)。安装器未签名，仍属预览测试版。
+
+## Phase 3D：候选人基础信息识别
+
+识别明确写出的 `姓名：` 标签、电话中夹杂空格的中国大陆手机号；避免将“个人简历”等通用标题误识别为姓名。无足够依据时沿用文件名，不猜测姓名、年龄、性别等属性。
 
 ## 下一阶段
 

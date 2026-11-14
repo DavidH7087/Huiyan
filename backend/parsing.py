@@ -138,11 +138,23 @@ def expand_upload(name: str, content: bytes):
 
 
 def extract_identity(pages: list[dict], filename: str) -> dict:
+    """Recognise explicitly labelled names and spaced Chinese mobile numbers.
+
+    A resume heading such as '个人简历' must never become a candidate's name.
+    """
     text = '\n'.join(page['text'] for page in pages)
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     name = Path(filename).stem
-    if lines and len(lines[0]) <= 12 and not any(ch.isdigit() for ch in lines[0]):
-        name = lines[0]
+    explicit = re.search(r'(?im)^\s*(?:姓名|name)\s*[：:]\s*([^\s|｜,，;；]{2,40})', text)
+    if explicit:
+        name = explicit.group(1)
+    elif lines:
+        head=lines[0].strip()
+        if re.fullmatch(r'[\u3400-\u9fff]{2,4}', head) and head not in (
+            '个人简历', '求职简历', '应聘简历', '简历', '联系方式', '基本信息'
+        ):
+            name = head
     emails = re.findall(r'[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}', text)
-    phones = re.findall(r'(?<!\d)1[3-9]\d{9}(?!\d)', text)
-    return {'name': name[:80], 'email': emails[0] if emails else '', 'phone': phones[0] if phones else ''}
+    phones = re.findall(r'(?<!\d)1[3-9]\d(?:[\s-]?\d){8}(?!\d)', text)
+    phone = re.sub(r'\D', '', phones[0]) if phones else ''
+    return {'name': name[:80], 'email': emails[0] if emails else '', 'phone': phone}
