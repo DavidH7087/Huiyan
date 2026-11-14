@@ -1,0 +1,29 @@
+name: Huiyan Browser E2E
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  chromium-ui-smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install application and Playwright
+        run: |
+          python -m pip install -r requirements.txt pytest httpx playwright
+          python -m playwright install --with-deps chromium
+      - name: Run HR workflow in headless Chromium
+        run: python -m pytest -q tests/test_ui_browser.py
+      - name: Save rendered UI screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: huiyan-chromium-ui-preview
+          path: tests/artifacts/*.png
+          retention-days: 14
+          if-no-files-found: warn

@@ -84,6 +84,10 @@ Windows 工作流另构建 Inno Setup 单文件安装包 `Huiyan-Setup-0.5.0-pre
 
 识别明确写出的 `姓名：` 标签、电话中夹杂空格的中国大陆手机号；避免将“个人简历”等通用标题误识别为姓名。无足够依据时沿用文件名，不猜测姓名、年龄、性别等属性。
 
+## Phase 4A：浏览器真实操作验收
+
+新增 `Huiyan Browser E2E` 自动化工作流，通过 Playwright Chromium 实际点击首页、创建任务、上传虚构简历、筛选、审核和查看历史；测试成功保存 UI 截图到短期 GitHub Artifact。该测试不上传真实候选人资料，也不能替代 Windows WebView2 图形界面人工测试。
+
 ## 下一阶段
 
 1. 评估 SmartResume / PaddleOCR 的中文简历结构化提取质量，完成大批量 OCR 队列。
