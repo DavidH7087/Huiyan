@@ -5,7 +5,7 @@ NOT a validated employment decision model: every result requires HR review.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, asdict
+from .evidence_context import rejection_reason
 
 # The vocabulary improves recall for a small starter set of Chinese job descriptions.
 # It is not a complete occupational ontology or a semantic language model.
@@ -105,7 +105,8 @@ def find_evidence(term: str, pages: list[dict]) -> dict | None:
             if not sentence.strip():
                 continue
             for alias in aliases:
-                if not _contains_alias(sentence, alias) or _looks_negated(sentence, alias):
+                if (not _contains_alias(sentence, alias) or _looks_negated(sentence, alias)
+                        or rejection_reason(sentence, alias)):
                     continue
                 idx = sentence.lower().find(alias.lower())
                 excerpt=(sentence[max(0,idx-70):idx+len(alias)+140] if idx>=0 else sentence[:220])
