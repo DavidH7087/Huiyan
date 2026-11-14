@@ -98,6 +98,10 @@ Windows 桌面模式限制本地 Host 和跨站 Origin/FETCH 请求，降低其�
 
 新增保守的否定/培训/求职意向识别规则及 120 份合成样本的固定标签回归测试，详见 [`docs/PHASE5A_REPORT.md`](docs/PHASE5A_REPORT.md)。数据是合成样本，不代表真实招聘准确率。
 
+## Phase 5D：安装说明和浏览器备份验收
+
+更新 Windows 安装说明，Chromium 在严格桌面请求防护模式下覆盖加密备份下载，参见 [Phase 5D 报告](docs/PHASE5D_REPORT.md)。
+
 ## Phase 5C：密码保护的本地招聘档案备份
 
 Windows 桌面版「招聘档案」页可创建 AES-256-GCM 加密备份 `.hyb`，包含招聘任务、简历原件、历史轮次及人工审核，恢复时必须使用独立的新数据目录，暂未提供普通 HR 的一键恢复向导。请阅读 [Phase 5C 开发报告](docs/PHASE5C_REPORT.md)，企业使用前须验证权限及备份恢复演练。

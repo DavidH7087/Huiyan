@@ -28,6 +28,7 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
     env.update({
         'HUIYAN_DATA_DIR': str(tmp_path / 'ui-data'),
         'HUIYAN_OCR_ENABLED': '0',
+        'HUIYAN_DESKTOP_MODE': '1',
     })
     server = subprocess.Popen(
         [sys.executable, '-m', 'uvicorn', 'backend.app:app', '--host', '127.0.0.1',
@@ -49,7 +50,7 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
 
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            page = browser.new_page(viewport={'width': 1360, 'height': 860}, device_scale_factor=1)
+            page = browser.new_page(viewport={'width': 1360, 'height': 860}, device_scale_factor=1, accept_downloads=True)
             try:
                 page.goto(f'http://127.0.0.1:{port}/', wait_until='networkidle')
                 page.get_by_role('heading', name='开始简历筛选').wait_for()
@@ -80,6 +81,16 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
                 page.locator('#openHistory').click()
                 page.get_by_text('筛选轮次').first.wait_for()
                 assert page.locator('[data-run]').count() >= 1
+                page.locator('nav [data-view="archive"]').click()
+                page.locator('#backupPassword').wait_for(state='visible')
+                page.locator('#backupPassword').fill('a-long-synthetic-test-password')
+                with page.expect_download() as transfer:
+                    page.locator('#createBackup').click()
+                download = transfer.value
+                assert download.suggested_filename.endswith('.hyb')
+                target = tmp_path / 'ui-export.hyb'
+                download.save_as(target)
+                assert target.read_bytes().startswith(b'HUIYANBK2\x00')
             finally:
                 browser.close()
     finally:
