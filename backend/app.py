@@ -7,6 +7,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import uuid
 from pathlib import Path
 from typing import Literal
@@ -38,6 +39,10 @@ class TaskPatch(BaseModel):
     required: list[str]|None=None
     preferred: list[str]|None=None
     archived: bool|None=None
+
+class TaskDelete(BaseModel):
+    confirm_title: str=Field(min_length=1,max_length=100)
+
 
 class DescriptionInput(BaseModel):
     description: str=Field(max_length=12000)
@@ -150,6 +155,49 @@ def create_app(data_dir:Path|None=None):
             if fields:
                 cn.execute(f'UPDATE tasks SET {", ".join(fields)} WHERE id=?',(*values,task_id))
             return get_task(cn,task_id)
+
+    @app.delete('/api/tasks/{task_id}')
+    def delete_archived_task(task_id:int, payload:TaskDelete):
+        """Irreversibly remove an archived task, all candidates and review history."""
+        with store.connect() as cn:
+            task=get_task(cn,task_id)
+            if not task['archived']:
+                raise HTTPException(409,'请先归档任务，再彻底删除')
+            if payload.confirm_title != task['title']:
+                raise HTTPException(400,'输入的任务名称不一致，已取消删除')
+            original_files=[r[0] for r in cn.execute('SELECT stored_file FROM resumes WHERE task_id=?',(task_id,))]
+            cn.execute('DELETE FROM evaluations WHERE run_id IN (SELECT id FROM runs WHERE task_id=?)',(task_id,))
+            # Child runs must be removed before their parent when foreign keys are on.
+            for run in cn.execute('SELECT id FROM runs WHERE task_id=? ORDER BY id DESC',(task_id,)).fetchall():
+                cn.execute('DELETE FROM runs WHERE id=?',(run['id'],))
+            cn.execute('DELETE FROM resume_profiles WHERE resume_id IN (SELECT id FROM resumes WHERE task_id=?)',(task_id,))
+            cn.execute('DELETE FROM reviews WHERE task_id=?',(task_id,))
+            cn.execute('DELETE FROM review_events WHERE task_id=?',(task_id,))
+            cn.execute('DELETE FROM imports WHERE task_id=?',(task_id,))
+            cn.execute('DELETE FROM resumes WHERE task_id=?',(task_id,))
+            cn.execute('DELETE FROM tasks WHERE id=?',(task_id,))
+        failed=[]
+        for filename in original_files:
+            # The stored filenames are UUIDs created by this app, never upload paths.
+            if not re.fullmatch(r'[0-9a-f]{32}\.(?:pdf|docx|txt)',filename):
+                failed.append(filename)
+                continue
+            try:
+                (store.root/'uploads'/filename).unlink(missing_ok=True)
+            except OSError:
+                failed.append(filename)
+        return {'deleted':True,'files':len(original_files),
+                'files_pending_cleanup':len(failed),
+                'warning':'部分文件清理失败，请联系管理员' if failed else ''}
+
+    @app.get('/api/tasks/{task_id}/review-history')
+    def review_history(task_id:int):
+        with store.connect() as cn:
+            get_task(cn,task_id)
+            return [dict(row) for row in cn.execute(
+                """SELECT e.id,e.resume_id,r.name,e.status,e.note,e.occurred_at
+                   FROM review_events e LEFT JOIN resumes r ON r.id=e.resume_id AND r.task_id=e.task_id
+                   WHERE e.task_id=? ORDER BY e.id DESC LIMIT 500""",(task_id,))]
 
     @app.post('/api/tasks/{task_id}/resumes')
     async def import_resumes(task_id:int,files:list[UploadFile]=File(...)):
