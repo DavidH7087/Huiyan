@@ -47,6 +47,45 @@ jobs:
         shell: pwsh
         run: |
           Compress-Archive -Path 'dist\Huiyan\*' -DestinationPath 'Huiyan-windows-x64.zip' -Force
+      - name: Build Windows installer with Inno Setup
+        shell: pwsh
+        run: |
+          $compiler = (Get-Command 'ISCC.exe' -ErrorAction SilentlyContinue).Source
+          if (-not $compiler) {
+            $paths = @(
+              (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),
+              (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe')
+            )
+            $compiler = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (-not $compiler) {
+            choco install innosetup --no-progress -y
+            $compiler = (Get-Command 'ISCC.exe' -ErrorAction SilentlyContinue).Source
+          }
+          if (-not $compiler) { throw 'Inno Setup compiler not available' }
+          & $compiler 'packaging\huiyan.iss'
+          if ($LASTEXITCODE -ne 0) { throw "Installer build failed with $LASTEXITCODE" }
+      - name: Verify silent installation and installed EXE
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem -Path 'dist\installer' -Filter 'Huiyan-Setup-*.exe' | Select-Object -First 1).FullName
+          if (-not $setup) { throw 'Installer not produced' }
+          $target = Join-Path $env:RUNNER_TEMP 'Huiyan-Installer-Test'
+          $arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=`"$target`""
+          $installation = Start-Process -FilePath $setup -ArgumentList $arguments -Wait -PassThru
+          if ($installation.ExitCode -ne 0) { throw "Silent installer failed with $($installation.ExitCode)" }
+          $installedExe = Join-Path $target 'Huiyan.exe'
+          if (-not (Test-Path $installedExe)) { throw 'Installed EXE is missing' }
+          $env:HUIYAN_DESKTOP_SMOKE = '1'
+          $env:HUIYAN_DATA_DIR = Join-Path $env:RUNNER_TEMP 'huiyan-installed-smoke'
+          $app = Start-Process -FilePath $installedExe -Wait -PassThru
+          if ($app.ExitCode -ne 0) { throw "Installed EXE smoke failed with $($app.ExitCode)" }
+      - name: Upload installer preview (unsigned test artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Huiyan-windows-installer-preview
+          path: dist/installer/Huiyan-Setup-*.exe
+          retention-days: 14
       - name: Upload portable build (test artifact, not a release)
         uses: actions/upload-artifact@v4
         with:
