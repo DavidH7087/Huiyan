@@ -9,16 +9,19 @@ import json
 import os
 import re
 import uuid
+import tempfile
 from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from openpyxl import Workbook
 from .storage import Store
 from .local_security import DesktopRequestGuard
+from .backup import BackupError, create_encrypted_backup
 from .engine import split_terms, suggest_conditions, evaluate
 from .semantic import LocalSemanticService
 from .ocr import LocalOcrService
@@ -44,6 +47,9 @@ class TaskPatch(BaseModel):
 class TaskDelete(BaseModel):
     confirm_title: str=Field(min_length=1,max_length=100)
 
+
+class BackupPassword(BaseModel):
+    password: str = Field(min_length=12, max_length=256)
 
 class DescriptionInput(BaseModel):
     description: str=Field(max_length=12000)
@@ -101,14 +107,36 @@ def create_app(data_dir:Path|None=None):
     store=Store(root)
     semantic=LocalSemanticService()
     ocr=LocalOcrService()
-    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.5.0-preview')
+    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.6.0-preview')
     if os.environ.get('HUIYAN_DESKTOP_MODE') == '1':
         app.add_middleware(DesktopRequestGuard)
 
     @app.get('/api/health')
     def health():
         return {'ok':True,'product':'慧眼','mode':'hybrid_retrieval_v0.2','offline':True,
-                'semantic':semantic.status(),'ocr':ocr.status()}
+                'semantic':semantic.status(),'ocr':ocr.status(),
+                'backup_available':os.environ.get('HUIYAN_DESKTOP_MODE') == '1'}
+
+    @app.post('/api/system/backup')
+    def export_backup(payload: BackupPassword):
+        # Never expose server-side archives through Codespaces public previews.
+        if os.environ.get('HUIYAN_DESKTOP_MODE') != '1':
+            raise HTTPException(403, '备份下载只在 Windows 本地桌面模式中可用')
+        fd, filename = tempfile.mkstemp(prefix='huiyan-encrypted-', suffix='.hyb')
+        os.close(fd)
+        path = Path(filename)
+        try:
+            create_encrypted_backup(store.root, payload.password, path)
+        except BackupError as exc:
+            path.unlink(missing_ok=True)
+            raise HTTPException(400, str(exc)) from None
+        except Exception:
+            path.unlink(missing_ok=True)
+            raise
+        return FileResponse(path, filename='Huiyan-encrypted-backup.hyb',
+                            media_type='application/octet-stream',
+                            headers={'Cache-Control': 'no-store'},
+                            background=BackgroundTask(lambda: path.unlink(missing_ok=True)))
 
     @app.post('/api/criteria/suggest')
     def criteria_suggest(payload:DescriptionInput):
