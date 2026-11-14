@@ -36,9 +36,13 @@ jobs:
         run: |
           $env:HUIYAN_DESKTOP_SMOKE = '1'
           $env:HUIYAN_DATA_DIR = Join-Path $env:RUNNER_TEMP 'huiyan-smoke-exe'
+          $env:HUIYAN_DESKTOP_SMOKE_LOG = Join-Path $env:RUNNER_TEMP 'huiyan-smoke-traceback.txt'
           $exe = (Resolve-Path '.\\dist\\Huiyan\\Huiyan.exe').Path
           $process = Start-Process -FilePath $exe -Wait -PassThru
-          if ($process.ExitCode -ne 0) { throw "Desktop bundled startup failed with $($process.ExitCode)" }
+          if ($process.ExitCode -ne 0) {
+            if (Test-Path $env:HUIYAN_DESKTOP_SMOKE_LOG) { Get-Content $env:HUIYAN_DESKTOP_SMOKE_LOG }
+            throw "Desktop bundled startup failed with $($process.ExitCode)"
+          }
       - name: Package portable folder
         shell: pwsh
         run: |
