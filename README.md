@@ -90,6 +90,10 @@ Windows 工作流另构建 Inno Setup 单文件安装包 `Huiyan-Setup-0.5.0-pre
 
 新增 `Huiyan Browser E2E` 自动化工作流，通过 Playwright Chromium 实际点击首页、创建任务、上传虚构简历、筛选、审核和查看历史；测试成功保存 UI 截图到短期 GitHub Artifact。该测试不上传真实候选人资料，也不能替代 Windows WebView2 图形界面人工测试。
 
+## Phase 5B：Windows 本地请求防护
+
+Windows 桌面模式限制本地 Host 和跨站 Origin/FETCH 请求，降低其他网页读写本地招聘数据的风险；不替代企业多用户认证，详见 [Phase 5B 报告](docs/PHASE5B_REPORT.md)。
+
 ## Phase 5A：语境误匹配修复
 
 新增保守的否定/培训/求职意向识别规则及 120 份合成样本的固定标签回归测试，详见 [`docs/PHASE5A_REPORT.md`](docs/PHASE5A_REPORT.md)。数据是合成样本，不代表真实招聘准确率。

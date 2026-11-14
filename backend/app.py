@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from openpyxl import Workbook
 from .storage import Store
+from .local_security import DesktopRequestGuard
 from .engine import split_terms, suggest_conditions, evaluate
 from .semantic import LocalSemanticService
 from .ocr import LocalOcrService
@@ -101,6 +102,8 @@ def create_app(data_dir:Path|None=None):
     semantic=LocalSemanticService()
     ocr=LocalOcrService()
     app=FastAPI(title='慧眼 - 简历筛选助手',version='0.5.0-preview')
+    if os.environ.get('HUIYAN_DESKTOP_MODE') == '1':
+        app.add_middleware(DesktopRequestGuard)
 
     @app.get('/api/health')
     def health():

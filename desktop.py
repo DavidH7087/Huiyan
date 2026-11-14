@@ -35,6 +35,7 @@ def run() -> int:
     directory = user_data_dir()
     directory.mkdir(parents=True, exist_ok=True)
     os.environ['HUIYAN_DATA_DIR'] = str(directory)
+    os.environ['HUIYAN_DESKTOP_MODE'] = '1'
     # Binding to 127.0.0.1 (not all interfaces) is mandatory for desktop use.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(('127.0.0.1', 0))
