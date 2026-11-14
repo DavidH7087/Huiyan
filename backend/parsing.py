@@ -1,16 +1,14 @@
-"""File parsing with page-level provenance and optional offline PDF OCR."""
+"""Offline PDF/DOCX/TXT parsing with evidence provenance and automatic OCR fallback."""
 from __future__ import annotations
-
 import io
 import re
 import zipfile
 from pathlib import Path
-
+from pypdf import PdfReader
 from docx import Document
 from docx.table import Table
 from docx.text.paragraph import Paragraph
-from pypdf import PdfReader
-
+from docx.oxml.ns import qn
 from .ocr import MAX_OCR_PAGES, OcrUnavailable
 
 SUPPORTED = {'.pdf', '.docx', '.txt'}
@@ -18,104 +16,163 @@ MAX_FILE = 25 * 1024 * 1024
 MAX_ARCHIVE = 100 * 1024 * 1024
 MAX_MEMBERS = 500
 
-
 class ParseError(ValueError):
     pass
 
-
 def _docx_lines(container) -> list[str]:
-    """Preserve paragraph/table order, including nested Word tables."""
-    lines: list[str] = []
+    """Keep table and paragraph order, including nested tables."""
+    lines = []
     for block in container.iter_inner_content():
         if isinstance(block, Paragraph):
             if block.text.strip():
                 lines.append(block.text)
         elif isinstance(block, Table):
             for row in block.rows:
-                cells: list[str] = []
-                seen: set[int] = set()
+                items, seen = [], set()
                 for cell in row.cells:
-                    marker = id(cell._tc)
-                    if marker in seen:
-                        continue  # horizontally merged table cell
-                    seen.add(marker)
+                    key = id(cell._tc)
+                    if key in seen:
+                        continue
+                    seen.add(key)
                     text = '\n'.join(_docx_lines(cell)).strip()
                     if text:
-                        cells.append(text)
-                if cells:
-                    lines.append(' | '.join(cells))
+                        items.append(text)
+                if items:
+                    lines.append(' | '.join(items))
     return lines
 
+def _docx_textboxes(doc) -> list[str]:
+    """python-docx doesn't return Word floating textbox text in paragraphs."""
+    result = []
+    roots = [doc.part.element]
+    for sec in doc.sections:
+        roots.extend([sec.header._element, sec.footer._element])
+    seen = set()
+    for root in roots:
+        for textbox in root.xpath('.//w:txbxContent'):
+            for paragraph in textbox.iter(qn('w:p')):
+                text = ''.join(node.text or '' for node in paragraph.iter(qn('w:t'))).strip()
+                if text and text not in seen:
+                    result.append(text)
+                    seen.add(text)
+    return result
+
+def _docx_pages(content: bytes, ocr=None) -> list[dict]:
+    doc = Document(io.BytesIO(content))
+    lines = _docx_lines(doc)
+    for section in doc.sections:
+        for area in (section.header, section.footer):
+            lines.extend(_docx_lines(area))
+    lines.extend(_docx_textboxes(doc))
+    raw = '\n'.join(lines).strip()
+    records = [{'page': 1, 'text': raw, 'source': 'docx'}] if raw else []
+    ready = bool(ocr and ocr.status().get('state') == 'ready')
+    # Some job-board exports are Word containers with the entire resume as an image.
+    # Only OCR media if text is sparse, to avoid reading logos from normal DOCX.
+    if len(re.sub(r'\s+', '', raw)) < 60:
+        try:
+            with zipfile.ZipFile(io.BytesIO(content)) as z:
+                pictures = [i for i in z.infolist() if i.filename.startswith('word/media/')
+                            and Path(i.filename).suffix.lower() in ('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.bmp')]
+                pictures = [i for i in pictures if i.file_size <= MAX_FILE][:8]
+                if pictures and not ready:
+                    warning = 'Word 中包含图片形式的简历；本地 OCR 不可用，不能确认图片中的文字'
+                    if records:
+                        records[0]['warning'] = warning
+                    else:
+                        records = [{'page': 1, 'text': '', 'source': 'unreadable', 'warning': warning}]
+                elif pictures and ready:
+                    recognized = []
+                    for item in pictures:
+                        try:
+                            text = ocr.recognize_image(z.read(item))
+                            if text.strip():
+                                recognized.append(text)
+                        except OcrUnavailable:
+                            pass
+                    if recognized:
+                        records.append({'page': 1, 'text': '\n'.join(recognized), 'source': 'ocr',
+                                        'warning': 'Word 嵌入图片中的 OCR 文字，需要核对原件'})
+        except (zipfile.BadZipFile, RuntimeError, OSError):
+            pass
+    return records or [{'page': 1, 'text': '', 'source': 'unreadable'}]
+
+def _is_weak(text: str) -> bool:
+    visible = re.sub(r'\s+', '', text or '')
+    return len(visible) < 12 or (visible.count('\ufffd') / max(1, len(visible))) > .20
 
 def _pdf_pages(content: bytes, ocr=None) -> list[dict]:
     reader = PdfReader(io.BytesIO(content), strict=False)
     if len(reader.pages) > 120:
         raise ParseError('PDF 页数超过 120 页')
     ready = bool(ocr and ocr.status().get('state') == 'ready')
-    pages: list[dict] = []
-    attempts = 0
+    pages, attempts = [], 0
     for i, page in enumerate(reader.pages):
-        extracted = page.extract_text() or ''
-        record = {'page': i + 1, 'text': extracted, 'source': 'pdf_text' if extracted.strip() else 'unreadable'}
-        # Very short PDF text layers may contain only page numbers or headers.
-        weak_text = len(re.sub(r'\s+', '', extracted)) < 12
-        if weak_text:
+        try:
+            extracted = page.extract_text() or ''
+        except Exception:
+            extracted = ''
+        record = {'page': i + 1, 'text': extracted,
+                  'source': 'pdf_text' if extracted.strip() else 'unreadable'}
+        if _is_weak(extracted):
             if ready and attempts < MAX_OCR_PAGES:
                 attempts += 1
                 try:
                     recognized = ocr.recognize_pdf_page(content, i).strip()
-                    if len(recognized) > len(extracted.strip()):
-                        record.update(text=recognized, source='ocr', warning='本页文字由 OCR 识别，请核对原件')
-                    elif not extracted.strip():
-                        record['warning'] = 'OCR 没有识别出可用文字，请检查扫描质量'
+                    if len(recognized) > len(extracted.strip()) or '\ufffd' in extracted:
+                        record.update(text=recognized, source='ocr', warning='本页文字由 OCR 识别，需核对原件')
                     else:
-                        record['warning'] = '该页可提取的文字较少，请核对原件'
+                        record['warning'] = 'PDF 页面文字较少或扫描不清楚，请核对原件'
                 except OcrUnavailable:
-                    record['warning'] = '本页 OCR 识别失败，请检查原件或重新导入'
+                    record['warning'] = '该页 OCR 识别失败，请检查原件'
             else:
-                record['warning'] = ('本页超过 OCR 处理上限，请单独检查' if ready else
-                    '本页无可用文字或内容过少，若为扫描件请启用本地 OCR')
+                record['warning'] = ('超出每份文件 OCR 页数上限，请单独检查' if ready else
+                                     'PDF 可能为扫描件图片或文字编码异常：当前 OCR 未就绪')
         pages.append(record)
     return pages
-
 
 def _text_pages(name: str, content: bytes, ocr=None) -> list[dict]:
     suffix = Path(name).suffix.lower()
     if suffix == '.pdf':
-        return _pdf_pages(content, ocr=ocr)
+        return _pdf_pages(content, ocr)
     if suffix == '.docx':
-        doc = Document(io.BytesIO(content))
-        return [{'page': 1, 'text': '\n'.join(_docx_lines(doc)), 'source': 'docx'}]
+        return _docx_pages(content, ocr)
     if suffix == '.txt':
         try:
             text = content.decode('utf-8-sig')
         except UnicodeDecodeError:
             text = content.decode('gb18030', errors='replace')
         return [{'page': 1, 'text': text, 'source': 'txt'}]
-    raise ParseError('仅支持 PDF、DOCX、TXT 和包含这些格式的 ZIP')
-
+    raise ParseError('只支持 PDF、DOCX、TXT 和包含这些格式的 ZIP；旧版 .doc 请先转换为 DOCX')
 
 def extract_pages(name: str, content: bytes, ocr=None) -> list[dict]:
     if len(content) > MAX_FILE:
-        raise ParseError('单份文件超过 25MB')
+        raise ParseError('单份文件超过 25 MB')
     try:
-        pages = _text_pages(name, content, ocr=ocr)
+        pages = _text_pages(name, content, ocr)
     except ParseError:
         raise
     except Exception:
-        raise ParseError('文件无法读取或格式不完整') from None
-    if not any(page['text'].strip() for page in pages):
-        raise ParseError('未提取到文字；如果是扫描件，请启用本地 OCR 或重新扫描')
+        raise ParseError('文件无法读取或格式不完整；加密 PDF 请先解除密码') from None
+    if not any(p.get('text', '').strip() for p in pages):
+        kind = Path(name).suffix.lower()
+        if kind in ('.pdf', '.docx'):
+            note = next((p['warning'] for p in pages if p.get('warning')), '')
+            if not note:
+                note = '文件可能为扫描图片、文字编码异常或内容为空'
+            ocr_state = ocr.status() if ocr is not None else {'state':'unavailable'}
+            if ocr_state.get('state') != 'ready':
+                note += '；本地 OCR 状态：' + ocr_state.get('message', '未安装')
+            raise ParseError('未提取到文字（无法识别文字）：' + note)
+        raise ParseError('文档没有可读取的文字')
     return pages
 
-
 def expand_upload(name: str, content: bytes):
-    """Yield document name/bytes; prevent traversal, huge archives, encrypted archives."""
     if Path(name).suffix.lower() != '.zip':
         yield name, content
         return
     if len(content) > MAX_ARCHIVE:
-        raise ParseError('ZIP 文件超过 100MB')
+        raise ParseError('ZIP 文件超过 100 MB')
     try:
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
             items = [item for item in archive.infolist() if not item.is_dir()]
@@ -136,12 +193,7 @@ def expand_upload(name: str, content: bytes):
     except (zipfile.BadZipFile, RuntimeError, EOFError):
         raise ParseError('ZIP 无法读取') from None
 
-
 def extract_identity(pages: list[dict], filename: str) -> dict:
-    """Recognise explicitly labelled names and spaced Chinese mobile numbers.
-
-    A resume heading such as '个人简历' must never become a candidate's name.
-    """
     text = '\n'.join(page['text'] for page in pages)
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     name = Path(filename).stem
@@ -149,12 +201,11 @@ def extract_identity(pages: list[dict], filename: str) -> dict:
     if explicit:
         name = explicit.group(1)
     elif lines:
-        head=lines[0].strip()
+        head = lines[0].strip()
         if re.fullmatch(r'[\u3400-\u9fff]{2,4}', head) and head not in (
-            '个人简历', '求职简历', '应聘简历', '简历', '联系方式', '基本信息'
-        ):
+                '个人简历', '求职简历', '应聘简历', '简历', '联系方式', '基本信息'):
             name = head
     emails = re.findall(r'[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}', text)
     phones = re.findall(r'(?<!\d)1[3-9]\d(?:[\s-]?\d){8}(?!\d)', text)
-    phone = re.sub(r'\D', '', phones[0]) if phones else ''
-    return {'name': name[:80], 'email': emails[0] if emails else '', 'phone': phone}
+    return {'name': name[:80], 'email': emails[0] if emails else '',
+            'phone': re.sub(r'\D', '', phones[0]) if phones else ''}

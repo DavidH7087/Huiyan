@@ -1,39 +1,36 @@
-# 慧眼 · 可选离线扫描件 OCR (Phase 2B)
+# 慧眼 · PDF / Word 文字识别与本地 OCR
 
-## 说明
+## 先区分文件类型
 
-目前使用本机 **Tesseract OCR + PDFium** 做扫描版 PDF 的第一页到第 30 个弱文字页面识别。仅当 PDF 页面文字层很少时才启动 OCR；对已能正确提取的页面不增加 OCR 负担。识别出的内容会标为「OCR文字待核实」，不能直接作为满足必要条件的证明。
+- **文字版 PDF**：通常能在 PDF 阅读器选中并复制文字，慧眼会直接提取。若字体编码损坏、无 Unicode 映射，也可能需要 OCR。
+- **扫描版 PDF**：PDF 每页是图片，不存在文字层；必须运行 OCR 才能识别。
+- **普通 DOCX**：从正文、表格、页眉页脚和浮动文字框读取文字。
+- **图片式 DOCX**：若整页简历为嵌入图片，慧眼在本地 OCR 就绪时尝试识别；无法正确识别的内容会留待核对。
+- **旧版 DOC（非 DOCX）**：暂不支持，请用 Word/LibreOffice 转换为 DOCX 后再导入。
 
-这是一套**已实现的本地 OCR 基线**，不是 PaddleOCR，且不能保证复杂中文扫描件的识别正确率。之后仍需用脱敏样本比较 PaddleOCR 和 Tesseract 的效果。
+## 自动 OCR 的工作方式
 
-## GitHub Codespaces / Debian Linux 配置
+只要 Tesseract、`chi_sim`/`eng` 语言包、`pypdfium2` 和 `pytesseract` 已在本机就绪，OCR **自动启用**（`HUIYAN_OCR_ENABLED=auto`）。强制关闭可设置 `HUIYAN_OCR_ENABLED=0`。OCR 始终在本地执行，不将简历发往任何模型 API。
+
+PDF 逐页先尝试读取文本层，只对没有可用文本或疑似乱码的页面使用 OCR；最多 30 页，单页有像素与超时上限。OCR 提取会保留 `source=ocr` 和“需人工核对”警告；绝不能把 OCR 命中直接当作满足硬性岗位要求。
+
+## Windows 安装版（v0.5.1 预览候选）
+
+Windows CI 在打包过程中安装 Tesseract 和简体中文、英文语言模型，再将运行时打进安装包和便携包。**以 Windows 构建和启动测试实际通过为准**，不能因为提交了打包脚本就认为已经随包部署成功。
+
+运行后可通过本机 `/api/health` 检查 `ocr.state=ready`；如果是 `unavailable`，导入页面会提示 OCR 尚未就绪，扫描件不可识别。
+
+## GitHub Codespaces (Debian Linux)
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-eng
 python -m pip install -r requirements-ocr.txt
-export HUIYAN_OCR_ENABLED=1
 bash start.sh
 ```
 
-检查是否已就绪：打开页面后访问 `/api/health`，查看 `ocr.state` 应为 `ready`。启动后增加依赖需要重启服务。Tesseract 和语言数据已经安装好后，识别不会调用互联网 API。
+切记：Codespaces 是云端环境，不要上传公司真实简历。需要在本地 Windows 软件测试私有简历。
 
-## Windows 环境
+## 尚未解决的情况
 
-在本机安装 Tesseract OCR（确保有 `chi_sim` 和 `eng` 训练数据），将 `tesseract.exe` 目录加入 `PATH`，执行 `pip install -r requirements-ocr.txt`。在 PowerShell 中设置：
-
-```powershell
-$env:HUIYAN_OCR_ENABLED = "1"
-python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
-```
-
-正式 Windows 安装程序尚未制作；需要验证 Tesseract 与语言包的本地捆绑及许可。
-
-## 设计限制
-
-- 每个 PDF 最多识别 30 个文字层过少的页面；其余页面会留下警告，防止无止境 OCR 任务。
-- 单张 PDF 渲染控制在约 1,000 万像素以内，识别进程有超时限制；当前导入流程仍然是同步请求，暂不适合无人值守的大批量 OCR。
-- 某页即使识别成功，结果也标记为 OCR 文字，并在候选人详情提示人工核对原文件；个别页失败会有导入警告。
-- 扫描件全部无法识别时会拒绝导入并报告原因，绝不当作一份空白简历参加筛选。
-- 不默认开启 OCR，以确保缺少大型依赖的普通办公电脑仍能使用文本简历筛选。
-- Codespaces 是云端环境，不要上传公司真实简历；正式运行需本地化及个人信息安全评估。
+复杂多栏排版、异体字、极低分辨率扫描、密码保护 PDF、图片严重模糊都可能需要人工处理。首次装完组件若程序已经启动，需要重启慧眼。OCR 可读不等于字段正确，应与 PDF 原件比较。

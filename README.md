@@ -103,3 +103,10 @@ Windows 工作流另构建 Inno Setup 单文件安装包 `Huiyan-Setup-0.5.0-pre
 ## Phase 4C：PDF / Word 测试库补全
 
 针对「真实 PDF/DOCX 无法识别文字」反馈，测试集已扩大到 120 份 **DOCX**、120 份**文字 PDF**、12 份**图片扫描 PDF**及 120 TXT；在 [testdata/synthetic/fixtures](testdata/synthetic/fixtures) 可直接获取每种岗位的 PDF/DOCX 示例，完整文件在 GitHub Actions `Huiyan Synthetic Corpus` 工作流的 `Artifacts` 里。文件全部虚构且带基准标签，详见 [Phase 4C 报告](docs/PHASE4C_REPORT.md)。扫描 PDF 必须配合本地 OCR 才能识别，当前 Windows 预览版是否捆绑 OCR 需另行验证。
+
+## Phase 4D：PDF/DOCX 识别修复
+
+- **OCR 自动启用**：本机装好中文/英文 OCR 运行时即自动对扫描 PDF、图片式 DOCX 做本地识别，不再默认关闭；无依赖时普通文字文件仍能导入。Windows 安装版 OCR 随包提供的构建和验证在 Windows CI 中单独检查。
+- **Word 提取**：支持正文、表格、页眉页脚、浮动文本框，并处理整页为图片的 DOCX。
+- **诊断提示**：无法读出文字时显示 OCR 状态和实际原因，不默默当作空白简历。
+- OCR 的提取内容均需要人工核实，不能直接判定岗位资格。详见 [OCR 使用说明](docs/OCR_SETUP.md) 及 [阶段报告](docs/PHASE4D_REPORT.md)。

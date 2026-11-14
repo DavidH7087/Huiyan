@@ -3,7 +3,7 @@ const nav = [...document.querySelectorAll('[data-view]')];
 const state = {
   page:'home', tasks:[], task:null, runs:[], run:null, result:null, selected:null,
   description:'', required:[], preferred:[], title:'', filter:'全部', busy:false, preview:null,
-  currentText:null, uploadSummary:null, search:'',
+  currentText:null, uploadSummary:null, search:'', health:null,
 };
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const e=escapeHtml;
@@ -35,8 +35,8 @@ function confirm(){return `<div class="page-title"><h1>确认筛选要求</h1><p
 <div class="notice">系统对招聘描述的自动提取只是建议，尤其是“最好”“不限”等词，请在这里核对后再继续。</div>
 <div class="actions" style="margin-top:22px"><button class="btn secondary" data-go="home">返回修改</button><button class="btn" id="createTask">创建任务，添加简历 →</button></div></div>`}
 function importPage(){return `<div class="page-title"><h1>添加简历</h1><p>${e(state.task?.title||'')} · 可以一次添加多个文件或整个文件夹。</p></div>
-<div class="surface"><div class="dropzone"><strong>选择简历文件</strong><p>支持 PDF、DOCX、TXT、ZIP；扫描版 PDF 需要单独开启本地 OCR（默认关闭）。</p><input type="file" id="fileInput" multiple accept=".pdf,.docx,.txt,.zip"><p style="margin-top:16px">或者选择整个文件夹</p><input type="file" id="folderInput" multiple webkitdirectory directory></div>
-<p id="importProgress" class="hint" role="status" aria-live="polite"></p><div class="actions" style="margin-top:18px"><button class="btn secondary" data-go="tasks">稍后添加</button><button class="btn" id="uploadFiles">导入所选简历</button></div>
+<div class="surface"><div class="dropzone"><strong>选择简历文件</strong><p>支持 PDF、DOCX、TXT、ZIP；${state.health?.ocr?.state==='ready' ? '扫描 PDF 和图片式 Word 将自动尝试本地 OCR 识别。' : '当前扫描件识别未就绪；文字 PDF 和普通 Word 不受影响。'}</p><input type="file" id="fileInput" multiple accept=".pdf,.docx,.txt,.zip"><p style="margin-top:16px">或者选择整个文件夹</p><input type="file" id="folderInput" multiple webkitdirectory directory></div>
+${state.health?.ocr ? `<p class="hint">文字识别：${e(state.health.ocr.message)}${state.health.ocr.state==='ready'?'':'。扫描版简历可能导入失败，请查看 OCR 配置说明。'}</p>` : ''}<p id="importProgress" class="hint" role="status" aria-live="polite"></p><div class="actions" style="margin-top:18px"><button class="btn secondary" data-go="tasks">稍后添加</button><button class="btn" id="uploadFiles">导入所选简历</button></div>
 ${state.uploadSummary?`<div class="notice">成功导入 ${state.uploadSummary.imported} 份，重复 ${state.uploadSummary.duplicates} 份，问题文件 ${state.uploadSummary.issues.length} 份，需核对 ${state.uploadSummary.warnings?.length||0} 份。</div>`:''}
 ${state.uploadSummary?.issues?.length?`<div class="notice warn">${state.uploadSummary.issues.slice(0,6).map(x=>e(x.filename+': '+x.message)).join('<br>')}</div>`:''}
 ${state.uploadSummary?.warnings?.length?`<div class="notice warn">${state.uploadSummary.warnings.slice(0,8).map(x=>e(x.filename+': '+x.message)).join('<br>')}</div>`:''}
@@ -128,4 +128,4 @@ view.addEventListener('click',ev=>withBusy(async()=>{
   if(target.dataset.preview){state.preview=await api(`/api/tasks/${state.task.id}/resumes/${target.dataset.preview}`);setPage('preview');return;}
   if(target.dataset.saveReview){await patch(`/api/tasks/${state.task.id}/resumes/${target.dataset.saveReview}/review`,{status:el('reviewStatus').value,note:el('reviewNote').value});await showRun(state.result.run.id);state.selected=Number(target.dataset.saveReview);render();toast('审核记录已保存');return;}
 }));
-withBusy(async()=>{await fetchTasks();setPage('home')});
+withBusy(async()=>{await fetchTasks();try{state.health=await api('/api/health')}catch{state.health=null}setPage('home')});
