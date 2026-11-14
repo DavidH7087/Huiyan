@@ -68,6 +68,12 @@ if __name__ == '__main__':
     try:
         sys.exit(run())
     except Exception as error:
-        # Avoid printing private document paths or candidate content to stdout.
+        # Debug tracebacks are allowed ONLY for synthetic, CI-only smoke tests.
+        if os.getenv('HUIYAN_DESKTOP_SMOKE') == '1':
+            import traceback
+            log = os.getenv('HUIYAN_DESKTOP_SMOKE_LOG')
+            if log:
+                Path(log).write_text(traceback.format_exc(), encoding='utf-8')
+        # Never expose resume contents in the normal desktop UI.
         print('慧眼启动失败：' + type(error).__name__ + '。请查看安装说明。', file=sys.stderr)
         sys.exit(1)
