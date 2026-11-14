@@ -41,14 +41,19 @@ jobs:
           from docx import Document
           root=Path('/tmp/huiyan-synthetic-corpus')
           assert len(list((root/'txt').glob('*.txt'))) == 120
-          assert len(list((root/'docx').glob('*.docx'))) == 24
-          assert len(list((root/'pdf-text').glob('*.pdf'))) == 24
+          assert len(list((root/'docx').glob('*.docx'))) == 120
+          assert len(list((root/'pdf-text').glob('*.pdf'))) == 120
           assert len(list((root/'pdf-scan').glob('*.pdf'))) == 12
-          assert len(list((root/'zip').glob('*.zip'))) == 8
+          assert len(list((root/'zip').glob('*.zip'))) == 20
           assert len(list((root/'invalid').iterdir())) == 3
           assert all(any(p.text for p in Document(str(f)).paragraphs) for f in (root/'docx').glob('*.docx'))
           assert all(PdfReader(str(f)).pages[0].extract_text().strip() for f in (root/'pdf-text').glob('*.pdf'))
           assert all(not (PdfReader(str(f)).pages[0].extract_text() or '').strip() for f in (root/'pdf-scan').glob('*.pdf'))
+          from backend.parsing import extract_pages
+          for folder in ('docx', 'pdf-text'):
+            for file in sorted((root/folder).iterdir()):
+              pages=extract_pages(file.name, file.read_bytes())
+              assert pages and any(p['text'].strip() for p in pages), file
           assert json.loads((root/'META.json').read_text())['all_data_fictional'] is True
           print('Synthetic corpus format checks: OK')
           PY

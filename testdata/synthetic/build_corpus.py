@@ -230,12 +230,11 @@ def create(out:Path, include_binary=True, font=None, pil_font=None):
         row['variants']=['txt/'+case['file']]
         if include_binary:
             stem=Path(case['file']).stem
-            if i%5==0: # 24 real Word DOCX files
-                target=out/'docx'/(stem+'.docx');_to_docx(case['text'],target)
-                row['variants'].append('docx/'+target.name)
-            if i%5==1: # 24 text-based PDFs
-                target=out/'pdf-text'/(stem+'.pdf');_to_pdf(case['text'],target,font)
-                row['variants'].append('pdf-text/'+target.name)
+            # Every candidate has both editable Word and selectable-text PDF variants.
+            target=out/'docx'/(stem+'.docx');_to_docx(case['text'],target)
+            row['variants'].append('docx/'+target.name)
+            target=out/'pdf-text'/(stem+'.pdf');_to_pdf(case['text'],target,font)
+            row['variants'].append('pdf-text/'+target.name)
             if i%10==2: # 12 image-only PDFs for local OCR
                 target=out/'pdf-scan'/(stem+'.pdf');_to_scanned_pdf(case['text'],target,pil_font)
                 row['variants'].append('pdf-scan/'+target.name)
@@ -243,10 +242,12 @@ def create(out:Path, include_binary=True, font=None, pil_font=None):
     (out/'truth.json').write_text(json.dumps(metadata,ensure_ascii=False,indent=2),encoding='utf-8')
     if include_binary:
         for role in ROLES:
-            with zipfile.ZipFile(out/'zip'/f'{role["id"]}-text.zip','w',zipfile.ZIP_DEFLATED) as z:
-                for case in cases:
-                    if case['job_id']==role['id']:
-                        z.write(out/'txt'/case['file'],case['file'])
+            for sub, ext, tag in (('txt', '.txt', 'text'), ('docx', '.docx', 'word'), ('pdf-text', '.pdf', 'pdf')):
+                with zipfile.ZipFile(out/'zip'/f'{role["id"]}-{tag}.zip','w',zipfile.ZIP_DEFLATED) as z:
+                    for case in cases:
+                        if case['job_id']==role['id']:
+                            name = Path(case['file']).with_suffix(ext).name
+                            z.write(out/sub/name, name)
         # Separate duplicates for import de-duplication tests.
         first=cases[0]['file'];content=(out/'txt'/first).read_bytes()
         with zipfile.ZipFile(out/'zip'/'duplicate-test.zip','w',zipfile.ZIP_DEFLATED) as z:
@@ -258,10 +259,10 @@ def create(out:Path, include_binary=True, font=None, pil_font=None):
         with zipfile.ZipFile(out/'zip'/'mixed-formats.zip','w',zipfile.ZIP_DEFLATED) as z:
             for folder in ('docx','pdf-text','pdf-scan'):
                 for path in sorted((out/folder).iterdir())[:3]:z.write(path,f'{folder}/{path.name}')
-    meta={'generator':'Huiyan synthetic benchmark v1','all_data_fictional':True,'candidate_count':len(cases),
+    meta={'generator':'Huiyan synthetic benchmark v2','all_data_fictional':True,'candidate_count':len(cases),
           'job_count':len(jobs),'scenario_distribution':dict(stats),'notes':'预期标签为作者设定的合成任务标注，不代表真实招聘准确率。'}
     (out/'META.json').write_text(json.dumps(meta,ensure_ascii=False,indent=2),encoding='utf-8')
-    (out/'README.md').write_text('''# 慧眼合成测试简历（无真实个人信息）\n\n所有姓名、单位、联系方式、学历、经历及项目均为人工编写模板生成的虚构数据；`example.invalid` 无法接收邮件，`000-0000-0000` 是无效号码。**不得作为真实招聘候选人使用。**\n\n- `jobs.json`：6 类岗位的岗位说明、必要条件与加分条件。\n- `truth.json`：120 位虚构候选人的人工预设标签。`direct` 和 `paraphrase` 应优先复核；`explicit_negative`、`insufficient`、`transferable`、`keyword_stuffing`、`mixed` 属于需人工确认的场景。\n- `txt/`：120 份可直接批量上传的文本简历。\n- `docx/`：24 份包含 Word 表格的简历。\n- `pdf-text/`：24 份有可提取文字层的 PDF 简历。\n- `pdf-scan/`：12 份只有图片、需要 OCR 的 PDF。\n- `zip/`：按岗位分组的 ZIP、混合格式 ZIP 与重复文件 ZIP。\n- `invalid/`：空文档和损坏文档，用于验证失败隔离。\n\n**建议测试方式**：新建一个岗位任务，从 `jobs.json` 复制 JD 和条件，仅导入对应岗位 `txt/` 20 份，观察优先查看/需要确认名单与 `truth.json` 对比。再分开导入 Word、文字 PDF、扫描 PDF 以检查文件兼容性。多个文件格式是同一位候选人的不同表示，请不要把所有格式混在同一真实招聘任务中统计人数。\n\n本数据中的 OCR 文字可能出错，必须回到 PDF 原件人工验证。不要把生成标签当作真实招聘质量评估。\n''',encoding='utf-8')
+    (out/'README.md').write_text('''# 慧眼合成测试简历（无真实个人信息）\n\n所有姓名、单位、联系方式、学历、经历及项目均为人工编写模板生成的虚构数据；`example.invalid` 无法接收邮件，`000-0000-0000` 是无效号码。**不得作为真实招聘候选人使用。**\n\n- `jobs.json`：6 类岗位的岗位说明、必要条件与加分条件。\n- `truth.json`：120 位虚构候选人的人工预设标签。`direct` 和 `paraphrase` 应优先复核；`explicit_negative`、`insufficient`、`transferable`、`keyword_stuffing`、`mixed` 属于需人工确认的场景。\n- `txt/`：120 份可直接批量上传的文本简历。\n- `docx/`：120 份包含 Word 表格的简历。\n- `pdf-text/`：120 份有可提取文字层的 PDF 简历。\n- `pdf-scan/`：12 份只有图片、需要 OCR 的 PDF。\n- `zip/`：按岗位、按 PDF/DOCX/TXT 分组的 ZIP，以及混合格式 ZIP 与重复文件 ZIP。\n- `invalid/`：空文档和损坏文档，用于验证失败隔离。\n\n**建议测试方式**：新建一个岗位任务，从 `jobs.json` 复制 JD 和条件，仅导入对应岗位 `txt/` 20 份，观察优先查看/需要确认名单与 `truth.json` 对比。再分开导入 Word、文字 PDF、扫描 PDF 以检查文件兼容性。多个文件格式是同一位候选人的不同表示，请不要把所有格式混在同一真实招聘任务中统计人数。\n\n本数据中的 OCR 文字可能出错，必须回到 PDF 原件人工验证。不要把生成标签当作真实招聘质量评估。\n''',encoding='utf-8')
     return meta
 
 

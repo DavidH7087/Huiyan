@@ -99,3 +99,7 @@ Windows 工作流另构建 Inno Setup 单文件安装包 `Huiyan-Setup-0.5.0-pre
 5. Tauri 等 Windows 桌面打包方案，真正断网的安装及性能验收。
 
 首个原型报告见 `docs/PHASE1_REPORT.md`，当前阶段报告见 `docs/PHASE2_REPORT.md`。
+
+## Phase 4C：PDF / Word 测试库补全
+
+针对「真实 PDF/DOCX 无法识别文字」反馈，测试集已扩大到 120 份 **DOCX**、120 份**文字 PDF**、12 份**图片扫描 PDF**及 120 TXT；在 [testdata/synthetic/fixtures](testdata/synthetic/fixtures) 可直接获取每种岗位的 PDF/DOCX 示例，完整文件在 GitHub Actions `Huiyan Synthetic Corpus` 工作流的 `Artifacts` 里。文件全部虚构且带基准标签，详见 [Phase 4C 报告](docs/PHASE4C_REPORT.md)。扫描 PDF 必须配合本地 OCR 才能识别，当前 Windows 预览版是否捆绑 OCR 需另行验证。
