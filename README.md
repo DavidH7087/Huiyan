@@ -66,6 +66,12 @@ python -m pytest -q
 
 已归档任务支持**输入完整名称确认**后永久删除，连同候选人、原简历文件、筛选记录及人工审核记录。API `DELETE /api/tasks/{id}` 需 JSON `{ "confirm_title": "任务名称" }`，如果文件无法删除则返回 `files_pending_cleanup` 并提示管理员；文件系统和数据库无法保证跨介质原子删除，**不代表安全擦除或磁盘不可恢复**。`GET /api/tasks/{id}/review-history` 可查看最近 500 条人工审核操作日志。请对 `data/` 做合规的访问控制、备份与保留策略；目前尚无用户登录、磁盘加密或企业权限系统。
 
+## Windows 桌面测试构建（Phase 3B）
+
+代码提交后，GitHub Actions 的 **Huiyan Windows Portable Build** 工作流会在 `windows-latest` 构建 `Huiyan-windows-x64-test-build`，可下载 ZIP 并解压运行 `Huiyan.exe`（Windows 11 / WebView2 Runtime）。这是**测试便携包，不是经过安全签名或人工验收的正式安装程序**；不会自动创建公开 Release。
+
+桌面模式仅监听 `127.0.0.1`，数据默认存放在 `%LOCALAPPDATA%\Huiyan\data`。请阅读 [`docs/WINDOWS_BUILD.md`](docs/WINDOWS_BUILD.md)；该便携包暂不包含 Tesseract OCR 或语义大模型，若需 OCR，按 `docs/OCR_SETUP.md` 单独配置。CI 可检验打包可执行文件是否启动，但无法代替真实图形桌面和企业安全审查。
+
 ## 下一阶段
 
 1. 评估 SmartResume / PaddleOCR 的中文简历结构化提取质量，完成大批量 OCR 队列。

@@ -1,0 +1,43 @@
+name: Huiyan Windows Portable Build
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  windows-build:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install desktop dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-desktop.txt pytest httpx
+      - name: Run API tests on Windows
+        run: python -m pytest -q tests/test_api.py tests/test_profile_api.py
+      - name: Create portable EXE
+        shell: pwsh
+        run: |
+          pyinstaller --clean --noconfirm --onedir --windowed --name Huiyan --add-data "frontend:frontend" --collect-submodules uvicorn --collect-all webview desktop.py
+      - name: Smoke test bundled EXE (no GUI)
+        shell: pwsh
+        run: |
+          $env:HUIYAN_DESKTOP_SMOKE = '1'
+          $env:HUIYAN_DATA_DIR = Join-Path $env:RUNNER_TEMP 'huiyan-smoke'
+          & '.\dist\Huiyan\Huiyan.exe'
+          if ($LASTEXITCODE -ne 0) { throw "Desktop bundled startup failed with $LASTEXITCODE" }
+      - name: Package portable folder
+        shell: pwsh
+        run: |
+          Compress-Archive -Path 'dist\Huiyan\*' -DestinationPath 'Huiyan-windows-x64.zip' -Force
+      - name: Upload portable build (test artifact, not a release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Huiyan-windows-x64-test-build
+          path: Huiyan-windows-x64.zip
+          retention-days: 14
