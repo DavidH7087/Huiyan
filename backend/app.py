@@ -22,6 +22,7 @@ from openpyxl import Workbook
 from .storage import Store
 from .local_security import DesktopRequestGuard
 from .backup import BackupError, create_encrypted_backup
+from .duplicates import annotate_possible_duplicates, collect_duplicate_groups
 from .engine import split_terms, suggest_conditions, evaluate
 from .semantic import LocalSemanticService
 from .ocr import LocalOcrService
@@ -314,6 +315,16 @@ def create_app(data_dir:Path|None=None):
             get_task(cn,task_id)
             return [dict(x) for x in cn.execute('SELECT id,filename,name,phone,email,imported_at FROM resumes WHERE task_id=? ORDER BY id DESC',(task_id,))]
 
+    @app.get('/api/tasks/{task_id}/duplicates')
+    def possible_duplicates(task_id: int):
+        with store.connect() as cn:
+            get_task(cn, task_id)
+            rows = [dict(row) for row in cn.execute(
+                'SELECT id AS resume_id,name,filename,email,phone FROM resumes WHERE task_id=?', (task_id,))]
+        annotate_possible_duplicates(rows)
+        groups = collect_duplicate_groups(rows)
+        return {'groups':groups,'count':len(groups)}
+
     @app.get('/api/tasks/{task_id}/resumes/{resume_id}')
     def resume_content(task_id:int,resume_id:int):
         with store.connect() as cn:
@@ -436,6 +447,7 @@ def create_app(data_dir:Path|None=None):
                 d['review_status']=d['review_status'] or '未审核'
                 d['review_note']=d['review_note'] or ''
                 records.append(d)
+            annotate_possible_duplicates(records)
             records.sort(key=lambda x:(-x['evaluation']['sort_key'],-x['evaluation']['evidence_coverage'],x['resume_id']))
             return {'run':{'id':run_id,'name':run['name'],'query':run['query'],'created_at':run['created_at'],
                            'parent_id':run['parent_id'],'scope':run['scope'],'criteria':json.loads(run['criteria_json'])},

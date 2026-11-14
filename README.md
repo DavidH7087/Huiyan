@@ -98,6 +98,10 @@ Windows 桌面模式限制本地 Host 和跨站 Origin/FETCH 请求，降低其�
 
 新增保守的否定/培训/求职意向识别规则及 120 份合成样本的固定标签回归测试，详见 [`docs/PHASE5A_REPORT.md`](docs/PHASE5A_REPORT.md)。数据是合成样本，不代表真实招聘准确率。
 
+## Phase 5E：跨格式候选人疑似重复提示
+
+同任务中相同有效手机号或电子邮箱会提示疑似重复候选人，**不自动合并**或删除原文件，避免同名误伤。详见 [Phase 5E 报告](docs/PHASE5E_REPORT.md)。
+
 ## Phase 5D：安装说明和浏览器备份验收
 
 更新 Windows 安装说明，Chromium 在严格桌面请求防护模式下覆盖加密备份下载，参见 [Phase 5D 报告](docs/PHASE5D_REPORT.md)。
