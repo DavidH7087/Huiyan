@@ -25,6 +25,12 @@ def user_data_dir() -> Path:
 
 
 def run() -> int:
+    # PyInstaller --windowed sets stdout/stderr to None. Uvicorn's logger
+    # calls isatty() during startup; provide safe sinks before configuring it.
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, 'w', encoding='utf-8')
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, 'w', encoding='utf-8')
     directory = user_data_dir()
     directory.mkdir(parents=True, exist_ok=True)
     os.environ['HUIYAN_DATA_DIR'] = str(directory)
