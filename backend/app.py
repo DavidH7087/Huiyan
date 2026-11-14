@@ -201,53 +201,81 @@ def create_app(data_dir:Path|None=None):
 
     @app.post('/api/tasks/{task_id}/resumes')
     async def import_resumes(task_id:int,files:list[UploadFile]=File(...)):
+        """Commit each document separately so interrupted batches retain progress."""
         imported=[]; issues=[]; warnings=[]; duplicates=0
         with store.connect() as cn:
             get_task(cn,task_id)
-            for upload in files:
-                filename=Path((upload.filename or 'unknown').replace('\\','/')).name
-                data=await upload.read(MAX_ARCHIVE+1)
-                if len(data)>MAX_ARCHIVE:
-                    issues.append({'filename':filename,'message':'文件超过 100MB'})
-                    cn.execute('INSERT INTO imports(task_id,filename,state,message) VALUES(?,?,?,?)',(task_id,filename,'失败','文件超过 100MB'))
+        for upload in files:
+            filename=Path((upload.filename or 'unknown').replace('\\','/')).name
+            data=await upload.read(MAX_ARCHIVE+1)
+            if len(data)>MAX_ARCHIVE:
+                issues.append({'filename':filename,'message':'文件超过 100MB'})
+                with store.connect() as cn:
+                    cn.execute('INSERT INTO imports(task_id,filename,state,message) VALUES(?,?,?,?)',
+                        (task_id,filename,'失败','文件超过 100MB'))
+                continue
+            try:
+                docs=list(expand_upload(filename,data))
+            except ParseError as exc:
+                issues.append({'filename':filename,'message':str(exc)})
+                with store.connect() as cn:
+                    cn.execute('INSERT INTO imports(task_id,filename,state,message) VALUES(?,?,?,?)',
+                        (task_id,filename,'失败',str(exc)))
+                continue
+            for name,content in docs:
+                file_hash=hashlib.sha256(content).hexdigest()
+                with store.connect() as cn:
+                    existing=cn.execute('SELECT id FROM resumes WHERE task_id=? AND content_hash=?',
+                                       (task_id,file_hash)).fetchone()
+                if existing:
+                    duplicates+=1
+                    with store.connect() as cn:
+                        cn.execute('INSERT INTO imports(task_id,filename,state,message) VALUES(?,?,?,?)',
+                            (task_id,name,'重复','文件内容重复'))
                     continue
                 try:
-                    docs=list(expand_upload(filename,data))
+                    pages=await run_in_threadpool(extract_pages,name,content,ocr)
+                    person=extract_identity(pages,name)
                 except ParseError as exc:
-                    issues.append({'filename':filename,'message':str(exc)})
-                    cn.execute('INSERT INTO imports(task_id,filename,state,message) VALUES(?,?,?,?)',(task_id,filename,'失败',str(exc)))
+                    issues.append({'filename':name,'message':str(exc)})
+                    with store.connect() as cn:
+                        cn.execute('INSERT INTO imports(task_id,filename,state,message) VALUES(?,?,?,?)',
+                            (task_id,name,'失败',str(exc)))
                     continue
-                for name,content in docs:
-                    file_hash=hashlib.sha256(content).hexdigest()
-                    existing=cn.execute('SELECT id FROM resumes WHERE task_id=? AND content_hash=?',(task_id,file_hash)).fetchone()
-                    if existing:
-                        duplicates+=1
-                        cn.execute('INSERT INTO imports(task_id,filename,state,message) VALUES(?,?,?,?)',(task_id,name,'重复','文件内容重复'))
-                        continue
-                    try:
-                        pages=await run_in_threadpool(extract_pages,name,content,ocr)
-                        person=extract_identity(pages,name)
-                    except ParseError as exc:
-                        issues.append({'filename':name,'message':str(exc)})
-                        cn.execute('INSERT INTO imports(task_id,filename,state,message) VALUES(?,?,?,?)',(task_id,name,'失败',str(exc)))
-                        continue
-                    stored_file=f'{uuid.uuid4().hex}{Path(name).suffix.lower()}'
-                    (store.root/'uploads'/stored_file).write_bytes(content)
-                    cn.execute('INSERT INTO resumes(task_id,filename,content_hash,stored_file,name,phone,email,pages_json) VALUES(?,?,?,?,?,?,?,?)',
-                        (task_id,name,file_hash,stored_file,person['name'],person['phone'],person['email'],dumps(pages)))
-                    imported.append(name)
-                    row_id=cn.execute('SELECT id FROM resumes WHERE task_id=? AND content_hash=?',(task_id,file_hash)).fetchone()[0]
-                    load_resume_profile(cn,row_id,pages)
-                    caution=[p for p in pages if p.get('warning')]
-                    if caution:
-                        count_ocr=sum(p.get('source')=='ocr' for p in caution)
-                        notice=f'{len(caution)} 页需要核对，含 {count_ocr} 页 OCR 识别文字'
-                        warnings.append({'filename':name,'message':notice})
-                    else:
-                        notice=''
-                    cn.execute('INSERT INTO imports(task_id,filename,state,message) VALUES(?,?,?,?)',
-                        (task_id,name,'需核实' if caution else '成功',notice))
-        return {'imported':len(imported),'duplicates':duplicates,'issues':issues,'warnings':warnings,'ocr_status':ocr.status(),'filenames':imported[:20]}
+                stored_file=f'{uuid.uuid4().hex}{Path(name).suffix.lower()}'
+                saved_path=store.root/'uploads'/stored_file
+                try:
+                    saved_path.write_bytes(content)
+                    with store.connect() as cn:
+                        saved=cn.execute("""INSERT INTO resumes
+                            (task_id,filename,content_hash,stored_file,name,phone,email,pages_json)
+                            VALUES(?,?,?,?,?,?,?,?)""",
+                            (task_id,name,file_hash,stored_file,person['name'],person['phone'],person['email'],dumps(pages)))
+                        load_resume_profile(cn,saved.lastrowid,pages)
+                        caution=[p for p in pages if p.get('warning')]
+                        if caution:
+                            count_ocr=sum(p.get('source')=='ocr' for p in caution)
+                            notice=f'{len(caution)} 页需要核对，含 {count_ocr} 页 OCR 识别文字'
+                        else:
+                            notice=''
+                        cn.execute('INSERT INTO imports(task_id,filename,state,message) VALUES(?,?,?,?)',
+                            (task_id,name,'需核实' if caution else '成功',notice))
+                except Exception:
+                    saved_path.unlink(missing_ok=True)
+                    raise
+                imported.append(name)
+                if caution:
+                    warnings.append({'filename':name,'message':notice})
+        return {'imported':len(imported),'duplicates':duplicates,'issues':issues,
+                'warnings':warnings,'ocr_status':ocr.status(),'filenames':imported[:20]}
+
+    @app.get('/api/tasks/{task_id}/imports')
+    def list_import_records(task_id:int):
+        with store.connect() as cn:
+            get_task(cn,task_id)
+            return [dict(row) for row in cn.execute(
+                'SELECT id,filename,state,message,created_at FROM imports WHERE task_id=? ORDER BY id DESC LIMIT 300',
+                (task_id,))]
 
     @app.get('/api/tasks/{task_id}/resumes')
     def list_resumes(task_id:int):

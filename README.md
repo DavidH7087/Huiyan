@@ -72,6 +72,10 @@ python -m pytest -q
 
 桌面模式仅监听 `127.0.0.1`，数据默认存放在 `%LOCALAPPDATA%\Huiyan\data`。请阅读 [`docs/WINDOWS_BUILD.md`](docs/WINDOWS_BUILD.md)；该便携包暂不包含 Tesseract OCR 或语义大模型，若需 OCR，按 `docs/OCR_SETUP.md` 单独配置。CI 可检验打包可执行文件是否启动，但无法代替真实图形桌面和企业安全审查。
 
+## Phase 3C：可恢复的批量导入
+
+导入采用每份简历独立的 SQLite 事务，前端按最多 10 个文件一组上传，并显示处理进度；因意外中断而再次导入时，已保存的文件按内容哈希识别为重复，不会全部重做。`GET /api/tasks/{id}/imports` 返回最近 300 条导入状态。**注意：**单个大型 ZIP 内的处理进度仍不能实时展示；后台持久化任务队列和断点 OCR 续算尚未完成。
+
 ## 下一阶段
 
 1. 评估 SmartResume / PaddleOCR 的中文简历结构化提取质量，完成大批量 OCR 队列。
