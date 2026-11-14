@@ -1,0 +1,16 @@
+{
+  "generator": "Huiyan synthetic benchmark v1",
+  "all_data_fictional": true,
+  "candidate_count": 120,
+  "job_count": 6,
+  "scenario_distribution": {
+    "direct": 36,
+    "paraphrase": 24,
+    "explicit_negative": 18,
+    "insufficient": 18,
+    "transferable": 12,
+    "keyword_stuffing": 6,
+    "mixed": 6
+  },
+  "notes": "预期标签为作者设定的合成任务标注，不代表真实招聘准确率。"
+}

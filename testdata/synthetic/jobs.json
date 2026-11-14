@@ -1,0 +1,72 @@
+[
+  {
+    "id": "b2b_sales",
+    "job_title": "企业客户销售经理",
+    "jd": "招聘企业客户销售经理，必须具备：B2B销售、客户开发。有制造业、渠道拓展经验更好。",
+    "required": [
+      "B2B销售",
+      "客户开发"
+    ],
+    "preferred": [
+      "制造业",
+      "渠道拓展"
+    ]
+  },
+  {
+    "id": "java_backend",
+    "job_title": "Java 后端工程师",
+    "jd": "招聘Java 后端工程师，必须具备：Java、SQL。有团队管理经验更好。",
+    "required": [
+      "Java",
+      "SQL"
+    ],
+    "preferred": [
+      "团队管理"
+    ]
+  },
+  {
+    "id": "python_data",
+    "job_title": "Python 数据分析师",
+    "jd": "招聘Python 数据分析师，必须具备：Python、SQL。有团队管理经验更好。",
+    "required": [
+      "Python",
+      "SQL"
+    ],
+    "preferred": [
+      "团队管理"
+    ]
+  },
+  {
+    "id": "finance",
+    "job_title": "总账会计",
+    "jd": "招聘总账会计，必须具备：财务核算。有SQL经验更好。",
+    "required": [
+      "财务核算"
+    ],
+    "preferred": [
+      "SQL"
+    ]
+  },
+  {
+    "id": "recruiting",
+    "job_title": "招聘专员",
+    "jd": "招聘招聘专员，必须具备：招聘。有团队管理经验更好。",
+    "required": [
+      "招聘"
+    ],
+    "preferred": [
+      "团队管理"
+    ]
+  },
+  {
+    "id": "inventory",
+    "job_title": "仓储库存主管",
+    "jd": "招聘仓储库存主管，必须具备：库存管理。有SQL经验更好。",
+    "required": [
+      "库存管理"
+    ],
+    "preferred": [
+      "SQL"
+    ]
+  }
+]

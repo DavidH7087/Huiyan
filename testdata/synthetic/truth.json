@@ -1,0 +1,1742 @@
+[
+  {
+    "id": "SYN001",
+    "job_id": "b2b_sales",
+    "synthetic_name": "林示例",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 4,
+    "file": "SYN001_b2b_sales.txt",
+    "variants": [
+      "txt/SYN001_b2b_sales.txt",
+      "docx/SYN001_b2b_sales.docx"
+    ]
+  },
+  {
+    "id": "SYN002",
+    "job_id": "b2b_sales",
+    "synthetic_name": "张演示",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 5,
+    "file": "SYN002_b2b_sales.txt",
+    "variants": [
+      "txt/SYN002_b2b_sales.txt",
+      "pdf-text/SYN002_b2b_sales.pdf"
+    ]
+  },
+  {
+    "id": "SYN003",
+    "job_id": "b2b_sales",
+    "synthetic_name": "陈样本",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 6,
+    "file": "SYN003_b2b_sales.txt",
+    "variants": [
+      "txt/SYN003_b2b_sales.txt",
+      "pdf-scan/SYN003_b2b_sales.pdf"
+    ]
+  },
+  {
+    "id": "SYN004",
+    "job_id": "b2b_sales",
+    "synthetic_name": "赵测试",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 7,
+    "file": "SYN004_b2b_sales.txt",
+    "variants": [
+      "txt/SYN004_b2b_sales.txt"
+    ]
+  },
+  {
+    "id": "SYN005",
+    "job_id": "b2b_sales",
+    "synthetic_name": "周虚构",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 8,
+    "file": "SYN005_b2b_sales.txt",
+    "variants": [
+      "txt/SYN005_b2b_sales.txt"
+    ]
+  },
+  {
+    "id": "SYN006",
+    "job_id": "b2b_sales",
+    "synthetic_name": "王模拟",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 9,
+    "file": "SYN006_b2b_sales.txt",
+    "variants": [
+      "txt/SYN006_b2b_sales.txt",
+      "docx/SYN006_b2b_sales.docx"
+    ]
+  },
+  {
+    "id": "SYN007",
+    "job_id": "b2b_sales",
+    "synthetic_name": "吴示例",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 3,
+    "file": "SYN007_b2b_sales.txt",
+    "variants": [
+      "txt/SYN007_b2b_sales.txt",
+      "pdf-text/SYN007_b2b_sales.pdf"
+    ]
+  },
+  {
+    "id": "SYN008",
+    "job_id": "b2b_sales",
+    "synthetic_name": "郑演示",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 4,
+    "file": "SYN008_b2b_sales.txt",
+    "variants": [
+      "txt/SYN008_b2b_sales.txt"
+    ]
+  },
+  {
+    "id": "SYN009",
+    "job_id": "b2b_sales",
+    "synthetic_name": "许样本",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 5,
+    "file": "SYN009_b2b_sales.txt",
+    "variants": [
+      "txt/SYN009_b2b_sales.txt"
+    ]
+  },
+  {
+    "id": "SYN010",
+    "job_id": "b2b_sales",
+    "synthetic_name": "何测试",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 6,
+    "file": "SYN010_b2b_sales.txt",
+    "variants": [
+      "txt/SYN010_b2b_sales.txt"
+    ]
+  },
+  {
+    "id": "SYN011",
+    "job_id": "b2b_sales",
+    "synthetic_name": "杨虚构",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN011_b2b_sales.txt",
+    "variants": [
+      "txt/SYN011_b2b_sales.txt",
+      "docx/SYN011_b2b_sales.docx"
+    ]
+  },
+  {
+    "id": "SYN012",
+    "job_id": "b2b_sales",
+    "synthetic_name": "曹模拟",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN012_b2b_sales.txt",
+    "variants": [
+      "txt/SYN012_b2b_sales.txt",
+      "pdf-text/SYN012_b2b_sales.pdf"
+    ]
+  },
+  {
+    "id": "SYN013",
+    "job_id": "b2b_sales",
+    "synthetic_name": "宋示例",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN013_b2b_sales.txt",
+    "variants": [
+      "txt/SYN013_b2b_sales.txt",
+      "pdf-scan/SYN013_b2b_sales.pdf"
+    ]
+  },
+  {
+    "id": "SYN014",
+    "job_id": "b2b_sales",
+    "synthetic_name": "冯演示",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN014_b2b_sales.txt",
+    "variants": [
+      "txt/SYN014_b2b_sales.txt"
+    ]
+  },
+  {
+    "id": "SYN015",
+    "job_id": "b2b_sales",
+    "synthetic_name": "朱样本",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN015_b2b_sales.txt",
+    "variants": [
+      "txt/SYN015_b2b_sales.txt"
+    ]
+  },
+  {
+    "id": "SYN016",
+    "job_id": "b2b_sales",
+    "synthetic_name": "胡测试",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN016_b2b_sales.txt",
+    "variants": [
+      "txt/SYN016_b2b_sales.txt",
+      "docx/SYN016_b2b_sales.docx"
+    ]
+  },
+  {
+    "id": "SYN017",
+    "job_id": "b2b_sales",
+    "synthetic_name": "邓虚构",
+    "scenario": "transferable",
+    "scenario_description": "具备相邻岗位技能，但不能直接证明必要条件",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN017_b2b_sales.txt",
+    "variants": [
+      "txt/SYN017_b2b_sales.txt",
+      "pdf-text/SYN017_b2b_sales.pdf"
+    ]
+  },
+  {
+    "id": "SYN018",
+    "job_id": "b2b_sales",
+    "synthetic_name": "马模拟",
+    "scenario": "transferable",
+    "scenario_description": "具备相邻岗位技能，但不能直接证明必要条件",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN018_b2b_sales.txt",
+    "variants": [
+      "txt/SYN018_b2b_sales.txt"
+    ]
+  },
+  {
+    "id": "SYN019",
+    "job_id": "b2b_sales",
+    "synthetic_name": "郭示例",
+    "scenario": "keyword_stuffing",
+    "scenario_description": "出现关键词但只是培训或课程内容",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN019_b2b_sales.txt",
+    "variants": [
+      "txt/SYN019_b2b_sales.txt"
+    ]
+  },
+  {
+    "id": "SYN020",
+    "job_id": "b2b_sales",
+    "synthetic_name": "唐演示",
+    "scenario": "mixed",
+    "scenario_description": "同时出现部分相关信息和否定性描述",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN020_b2b_sales.txt",
+    "variants": [
+      "txt/SYN020_b2b_sales.txt"
+    ]
+  },
+  {
+    "id": "SYN021",
+    "job_id": "java_backend",
+    "synthetic_name": "林示例",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 3,
+    "file": "SYN021_java_backend.txt",
+    "variants": [
+      "txt/SYN021_java_backend.txt",
+      "docx/SYN021_java_backend.docx"
+    ]
+  },
+  {
+    "id": "SYN022",
+    "job_id": "java_backend",
+    "synthetic_name": "张演示",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 4,
+    "file": "SYN022_java_backend.txt",
+    "variants": [
+      "txt/SYN022_java_backend.txt",
+      "pdf-text/SYN022_java_backend.pdf"
+    ]
+  },
+  {
+    "id": "SYN023",
+    "job_id": "java_backend",
+    "synthetic_name": "陈样本",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 5,
+    "file": "SYN023_java_backend.txt",
+    "variants": [
+      "txt/SYN023_java_backend.txt",
+      "pdf-scan/SYN023_java_backend.pdf"
+    ]
+  },
+  {
+    "id": "SYN024",
+    "job_id": "java_backend",
+    "synthetic_name": "赵测试",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 6,
+    "file": "SYN024_java_backend.txt",
+    "variants": [
+      "txt/SYN024_java_backend.txt"
+    ]
+  },
+  {
+    "id": "SYN025",
+    "job_id": "java_backend",
+    "synthetic_name": "周虚构",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 7,
+    "file": "SYN025_java_backend.txt",
+    "variants": [
+      "txt/SYN025_java_backend.txt"
+    ]
+  },
+  {
+    "id": "SYN026",
+    "job_id": "java_backend",
+    "synthetic_name": "王模拟",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 8,
+    "file": "SYN026_java_backend.txt",
+    "variants": [
+      "txt/SYN026_java_backend.txt",
+      "docx/SYN026_java_backend.docx"
+    ]
+  },
+  {
+    "id": "SYN027",
+    "job_id": "java_backend",
+    "synthetic_name": "吴示例",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 9,
+    "file": "SYN027_java_backend.txt",
+    "variants": [
+      "txt/SYN027_java_backend.txt",
+      "pdf-text/SYN027_java_backend.pdf"
+    ]
+  },
+  {
+    "id": "SYN028",
+    "job_id": "java_backend",
+    "synthetic_name": "郑演示",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 3,
+    "file": "SYN028_java_backend.txt",
+    "variants": [
+      "txt/SYN028_java_backend.txt"
+    ]
+  },
+  {
+    "id": "SYN029",
+    "job_id": "java_backend",
+    "synthetic_name": "许样本",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 4,
+    "file": "SYN029_java_backend.txt",
+    "variants": [
+      "txt/SYN029_java_backend.txt"
+    ]
+  },
+  {
+    "id": "SYN030",
+    "job_id": "java_backend",
+    "synthetic_name": "何测试",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 5,
+    "file": "SYN030_java_backend.txt",
+    "variants": [
+      "txt/SYN030_java_backend.txt"
+    ]
+  },
+  {
+    "id": "SYN031",
+    "job_id": "java_backend",
+    "synthetic_name": "杨虚构",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN031_java_backend.txt",
+    "variants": [
+      "txt/SYN031_java_backend.txt",
+      "docx/SYN031_java_backend.docx"
+    ]
+  },
+  {
+    "id": "SYN032",
+    "job_id": "java_backend",
+    "synthetic_name": "曹模拟",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN032_java_backend.txt",
+    "variants": [
+      "txt/SYN032_java_backend.txt",
+      "pdf-text/SYN032_java_backend.pdf"
+    ]
+  },
+  {
+    "id": "SYN033",
+    "job_id": "java_backend",
+    "synthetic_name": "宋示例",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN033_java_backend.txt",
+    "variants": [
+      "txt/SYN033_java_backend.txt",
+      "pdf-scan/SYN033_java_backend.pdf"
+    ]
+  },
+  {
+    "id": "SYN034",
+    "job_id": "java_backend",
+    "synthetic_name": "冯演示",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN034_java_backend.txt",
+    "variants": [
+      "txt/SYN034_java_backend.txt"
+    ]
+  },
+  {
+    "id": "SYN035",
+    "job_id": "java_backend",
+    "synthetic_name": "朱样本",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN035_java_backend.txt",
+    "variants": [
+      "txt/SYN035_java_backend.txt"
+    ]
+  },
+  {
+    "id": "SYN036",
+    "job_id": "java_backend",
+    "synthetic_name": "胡测试",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN036_java_backend.txt",
+    "variants": [
+      "txt/SYN036_java_backend.txt",
+      "docx/SYN036_java_backend.docx"
+    ]
+  },
+  {
+    "id": "SYN037",
+    "job_id": "java_backend",
+    "synthetic_name": "邓虚构",
+    "scenario": "transferable",
+    "scenario_description": "具备相邻岗位技能，但不能直接证明必要条件",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN037_java_backend.txt",
+    "variants": [
+      "txt/SYN037_java_backend.txt",
+      "pdf-text/SYN037_java_backend.pdf"
+    ]
+  },
+  {
+    "id": "SYN038",
+    "job_id": "java_backend",
+    "synthetic_name": "马模拟",
+    "scenario": "transferable",
+    "scenario_description": "具备相邻岗位技能，但不能直接证明必要条件",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN038_java_backend.txt",
+    "variants": [
+      "txt/SYN038_java_backend.txt"
+    ]
+  },
+  {
+    "id": "SYN039",
+    "job_id": "java_backend",
+    "synthetic_name": "郭示例",
+    "scenario": "keyword_stuffing",
+    "scenario_description": "出现关键词但只是培训或课程内容",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN039_java_backend.txt",
+    "variants": [
+      "txt/SYN039_java_backend.txt"
+    ]
+  },
+  {
+    "id": "SYN040",
+    "job_id": "java_backend",
+    "synthetic_name": "唐演示",
+    "scenario": "mixed",
+    "scenario_description": "同时出现部分相关信息和否定性描述",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN040_java_backend.txt",
+    "variants": [
+      "txt/SYN040_java_backend.txt"
+    ]
+  },
+  {
+    "id": "SYN041",
+    "job_id": "python_data",
+    "synthetic_name": "林示例",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 9,
+    "file": "SYN041_python_data.txt",
+    "variants": [
+      "txt/SYN041_python_data.txt",
+      "docx/SYN041_python_data.docx"
+    ]
+  },
+  {
+    "id": "SYN042",
+    "job_id": "python_data",
+    "synthetic_name": "张演示",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 3,
+    "file": "SYN042_python_data.txt",
+    "variants": [
+      "txt/SYN042_python_data.txt",
+      "pdf-text/SYN042_python_data.pdf"
+    ]
+  },
+  {
+    "id": "SYN043",
+    "job_id": "python_data",
+    "synthetic_name": "陈样本",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 4,
+    "file": "SYN043_python_data.txt",
+    "variants": [
+      "txt/SYN043_python_data.txt",
+      "pdf-scan/SYN043_python_data.pdf"
+    ]
+  },
+  {
+    "id": "SYN044",
+    "job_id": "python_data",
+    "synthetic_name": "赵测试",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 5,
+    "file": "SYN044_python_data.txt",
+    "variants": [
+      "txt/SYN044_python_data.txt"
+    ]
+  },
+  {
+    "id": "SYN045",
+    "job_id": "python_data",
+    "synthetic_name": "周虚构",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 6,
+    "file": "SYN045_python_data.txt",
+    "variants": [
+      "txt/SYN045_python_data.txt"
+    ]
+  },
+  {
+    "id": "SYN046",
+    "job_id": "python_data",
+    "synthetic_name": "王模拟",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 7,
+    "file": "SYN046_python_data.txt",
+    "variants": [
+      "txt/SYN046_python_data.txt",
+      "docx/SYN046_python_data.docx"
+    ]
+  },
+  {
+    "id": "SYN047",
+    "job_id": "python_data",
+    "synthetic_name": "吴示例",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 8,
+    "file": "SYN047_python_data.txt",
+    "variants": [
+      "txt/SYN047_python_data.txt",
+      "pdf-text/SYN047_python_data.pdf"
+    ]
+  },
+  {
+    "id": "SYN048",
+    "job_id": "python_data",
+    "synthetic_name": "郑演示",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 9,
+    "file": "SYN048_python_data.txt",
+    "variants": [
+      "txt/SYN048_python_data.txt"
+    ]
+  },
+  {
+    "id": "SYN049",
+    "job_id": "python_data",
+    "synthetic_name": "许样本",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 3,
+    "file": "SYN049_python_data.txt",
+    "variants": [
+      "txt/SYN049_python_data.txt"
+    ]
+  },
+  {
+    "id": "SYN050",
+    "job_id": "python_data",
+    "synthetic_name": "何测试",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 4,
+    "file": "SYN050_python_data.txt",
+    "variants": [
+      "txt/SYN050_python_data.txt"
+    ]
+  },
+  {
+    "id": "SYN051",
+    "job_id": "python_data",
+    "synthetic_name": "杨虚构",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN051_python_data.txt",
+    "variants": [
+      "txt/SYN051_python_data.txt",
+      "docx/SYN051_python_data.docx"
+    ]
+  },
+  {
+    "id": "SYN052",
+    "job_id": "python_data",
+    "synthetic_name": "曹模拟",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN052_python_data.txt",
+    "variants": [
+      "txt/SYN052_python_data.txt",
+      "pdf-text/SYN052_python_data.pdf"
+    ]
+  },
+  {
+    "id": "SYN053",
+    "job_id": "python_data",
+    "synthetic_name": "宋示例",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN053_python_data.txt",
+    "variants": [
+      "txt/SYN053_python_data.txt",
+      "pdf-scan/SYN053_python_data.pdf"
+    ]
+  },
+  {
+    "id": "SYN054",
+    "job_id": "python_data",
+    "synthetic_name": "冯演示",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN054_python_data.txt",
+    "variants": [
+      "txt/SYN054_python_data.txt"
+    ]
+  },
+  {
+    "id": "SYN055",
+    "job_id": "python_data",
+    "synthetic_name": "朱样本",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN055_python_data.txt",
+    "variants": [
+      "txt/SYN055_python_data.txt"
+    ]
+  },
+  {
+    "id": "SYN056",
+    "job_id": "python_data",
+    "synthetic_name": "胡测试",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN056_python_data.txt",
+    "variants": [
+      "txt/SYN056_python_data.txt",
+      "docx/SYN056_python_data.docx"
+    ]
+  },
+  {
+    "id": "SYN057",
+    "job_id": "python_data",
+    "synthetic_name": "邓虚构",
+    "scenario": "transferable",
+    "scenario_description": "具备相邻岗位技能，但不能直接证明必要条件",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN057_python_data.txt",
+    "variants": [
+      "txt/SYN057_python_data.txt",
+      "pdf-text/SYN057_python_data.pdf"
+    ]
+  },
+  {
+    "id": "SYN058",
+    "job_id": "python_data",
+    "synthetic_name": "马模拟",
+    "scenario": "transferable",
+    "scenario_description": "具备相邻岗位技能，但不能直接证明必要条件",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN058_python_data.txt",
+    "variants": [
+      "txt/SYN058_python_data.txt"
+    ]
+  },
+  {
+    "id": "SYN059",
+    "job_id": "python_data",
+    "synthetic_name": "郭示例",
+    "scenario": "keyword_stuffing",
+    "scenario_description": "出现关键词但只是培训或课程内容",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN059_python_data.txt",
+    "variants": [
+      "txt/SYN059_python_data.txt"
+    ]
+  },
+  {
+    "id": "SYN060",
+    "job_id": "python_data",
+    "synthetic_name": "唐演示",
+    "scenario": "mixed",
+    "scenario_description": "同时出现部分相关信息和否定性描述",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN060_python_data.txt",
+    "variants": [
+      "txt/SYN060_python_data.txt"
+    ]
+  },
+  {
+    "id": "SYN061",
+    "job_id": "finance",
+    "synthetic_name": "林示例",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 8,
+    "file": "SYN061_finance.txt",
+    "variants": [
+      "txt/SYN061_finance.txt",
+      "docx/SYN061_finance.docx"
+    ]
+  },
+  {
+    "id": "SYN062",
+    "job_id": "finance",
+    "synthetic_name": "张演示",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 9,
+    "file": "SYN062_finance.txt",
+    "variants": [
+      "txt/SYN062_finance.txt",
+      "pdf-text/SYN062_finance.pdf"
+    ]
+  },
+  {
+    "id": "SYN063",
+    "job_id": "finance",
+    "synthetic_name": "陈样本",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 3,
+    "file": "SYN063_finance.txt",
+    "variants": [
+      "txt/SYN063_finance.txt",
+      "pdf-scan/SYN063_finance.pdf"
+    ]
+  },
+  {
+    "id": "SYN064",
+    "job_id": "finance",
+    "synthetic_name": "赵测试",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 4,
+    "file": "SYN064_finance.txt",
+    "variants": [
+      "txt/SYN064_finance.txt"
+    ]
+  },
+  {
+    "id": "SYN065",
+    "job_id": "finance",
+    "synthetic_name": "周虚构",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 5,
+    "file": "SYN065_finance.txt",
+    "variants": [
+      "txt/SYN065_finance.txt"
+    ]
+  },
+  {
+    "id": "SYN066",
+    "job_id": "finance",
+    "synthetic_name": "王模拟",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 6,
+    "file": "SYN066_finance.txt",
+    "variants": [
+      "txt/SYN066_finance.txt",
+      "docx/SYN066_finance.docx"
+    ]
+  },
+  {
+    "id": "SYN067",
+    "job_id": "finance",
+    "synthetic_name": "吴示例",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 7,
+    "file": "SYN067_finance.txt",
+    "variants": [
+      "txt/SYN067_finance.txt",
+      "pdf-text/SYN067_finance.pdf"
+    ]
+  },
+  {
+    "id": "SYN068",
+    "job_id": "finance",
+    "synthetic_name": "郑演示",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 8,
+    "file": "SYN068_finance.txt",
+    "variants": [
+      "txt/SYN068_finance.txt"
+    ]
+  },
+  {
+    "id": "SYN069",
+    "job_id": "finance",
+    "synthetic_name": "许样本",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 9,
+    "file": "SYN069_finance.txt",
+    "variants": [
+      "txt/SYN069_finance.txt"
+    ]
+  },
+  {
+    "id": "SYN070",
+    "job_id": "finance",
+    "synthetic_name": "何测试",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 3,
+    "file": "SYN070_finance.txt",
+    "variants": [
+      "txt/SYN070_finance.txt"
+    ]
+  },
+  {
+    "id": "SYN071",
+    "job_id": "finance",
+    "synthetic_name": "杨虚构",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN071_finance.txt",
+    "variants": [
+      "txt/SYN071_finance.txt",
+      "docx/SYN071_finance.docx"
+    ]
+  },
+  {
+    "id": "SYN072",
+    "job_id": "finance",
+    "synthetic_name": "曹模拟",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN072_finance.txt",
+    "variants": [
+      "txt/SYN072_finance.txt",
+      "pdf-text/SYN072_finance.pdf"
+    ]
+  },
+  {
+    "id": "SYN073",
+    "job_id": "finance",
+    "synthetic_name": "宋示例",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN073_finance.txt",
+    "variants": [
+      "txt/SYN073_finance.txt",
+      "pdf-scan/SYN073_finance.pdf"
+    ]
+  },
+  {
+    "id": "SYN074",
+    "job_id": "finance",
+    "synthetic_name": "冯演示",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN074_finance.txt",
+    "variants": [
+      "txt/SYN074_finance.txt"
+    ]
+  },
+  {
+    "id": "SYN075",
+    "job_id": "finance",
+    "synthetic_name": "朱样本",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN075_finance.txt",
+    "variants": [
+      "txt/SYN075_finance.txt"
+    ]
+  },
+  {
+    "id": "SYN076",
+    "job_id": "finance",
+    "synthetic_name": "胡测试",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN076_finance.txt",
+    "variants": [
+      "txt/SYN076_finance.txt",
+      "docx/SYN076_finance.docx"
+    ]
+  },
+  {
+    "id": "SYN077",
+    "job_id": "finance",
+    "synthetic_name": "邓虚构",
+    "scenario": "transferable",
+    "scenario_description": "具备相邻岗位技能，但不能直接证明必要条件",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN077_finance.txt",
+    "variants": [
+      "txt/SYN077_finance.txt",
+      "pdf-text/SYN077_finance.pdf"
+    ]
+  },
+  {
+    "id": "SYN078",
+    "job_id": "finance",
+    "synthetic_name": "马模拟",
+    "scenario": "transferable",
+    "scenario_description": "具备相邻岗位技能，但不能直接证明必要条件",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN078_finance.txt",
+    "variants": [
+      "txt/SYN078_finance.txt"
+    ]
+  },
+  {
+    "id": "SYN079",
+    "job_id": "finance",
+    "synthetic_name": "郭示例",
+    "scenario": "keyword_stuffing",
+    "scenario_description": "出现关键词但只是培训或课程内容",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN079_finance.txt",
+    "variants": [
+      "txt/SYN079_finance.txt"
+    ]
+  },
+  {
+    "id": "SYN080",
+    "job_id": "finance",
+    "synthetic_name": "唐演示",
+    "scenario": "mixed",
+    "scenario_description": "同时出现部分相关信息和否定性描述",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN080_finance.txt",
+    "variants": [
+      "txt/SYN080_finance.txt"
+    ]
+  },
+  {
+    "id": "SYN081",
+    "job_id": "recruiting",
+    "synthetic_name": "林示例",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 7,
+    "file": "SYN081_recruiting.txt",
+    "variants": [
+      "txt/SYN081_recruiting.txt",
+      "docx/SYN081_recruiting.docx"
+    ]
+  },
+  {
+    "id": "SYN082",
+    "job_id": "recruiting",
+    "synthetic_name": "张演示",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 8,
+    "file": "SYN082_recruiting.txt",
+    "variants": [
+      "txt/SYN082_recruiting.txt",
+      "pdf-text/SYN082_recruiting.pdf"
+    ]
+  },
+  {
+    "id": "SYN083",
+    "job_id": "recruiting",
+    "synthetic_name": "陈样本",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 9,
+    "file": "SYN083_recruiting.txt",
+    "variants": [
+      "txt/SYN083_recruiting.txt",
+      "pdf-scan/SYN083_recruiting.pdf"
+    ]
+  },
+  {
+    "id": "SYN084",
+    "job_id": "recruiting",
+    "synthetic_name": "赵测试",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 3,
+    "file": "SYN084_recruiting.txt",
+    "variants": [
+      "txt/SYN084_recruiting.txt"
+    ]
+  },
+  {
+    "id": "SYN085",
+    "job_id": "recruiting",
+    "synthetic_name": "周虚构",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 4,
+    "file": "SYN085_recruiting.txt",
+    "variants": [
+      "txt/SYN085_recruiting.txt"
+    ]
+  },
+  {
+    "id": "SYN086",
+    "job_id": "recruiting",
+    "synthetic_name": "王模拟",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 5,
+    "file": "SYN086_recruiting.txt",
+    "variants": [
+      "txt/SYN086_recruiting.txt",
+      "docx/SYN086_recruiting.docx"
+    ]
+  },
+  {
+    "id": "SYN087",
+    "job_id": "recruiting",
+    "synthetic_name": "吴示例",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 6,
+    "file": "SYN087_recruiting.txt",
+    "variants": [
+      "txt/SYN087_recruiting.txt",
+      "pdf-text/SYN087_recruiting.pdf"
+    ]
+  },
+  {
+    "id": "SYN088",
+    "job_id": "recruiting",
+    "synthetic_name": "郑演示",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 7,
+    "file": "SYN088_recruiting.txt",
+    "variants": [
+      "txt/SYN088_recruiting.txt"
+    ]
+  },
+  {
+    "id": "SYN089",
+    "job_id": "recruiting",
+    "synthetic_name": "许样本",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 8,
+    "file": "SYN089_recruiting.txt",
+    "variants": [
+      "txt/SYN089_recruiting.txt"
+    ]
+  },
+  {
+    "id": "SYN090",
+    "job_id": "recruiting",
+    "synthetic_name": "何测试",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 9,
+    "file": "SYN090_recruiting.txt",
+    "variants": [
+      "txt/SYN090_recruiting.txt"
+    ]
+  },
+  {
+    "id": "SYN091",
+    "job_id": "recruiting",
+    "synthetic_name": "杨虚构",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN091_recruiting.txt",
+    "variants": [
+      "txt/SYN091_recruiting.txt",
+      "docx/SYN091_recruiting.docx"
+    ]
+  },
+  {
+    "id": "SYN092",
+    "job_id": "recruiting",
+    "synthetic_name": "曹模拟",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN092_recruiting.txt",
+    "variants": [
+      "txt/SYN092_recruiting.txt",
+      "pdf-text/SYN092_recruiting.pdf"
+    ]
+  },
+  {
+    "id": "SYN093",
+    "job_id": "recruiting",
+    "synthetic_name": "宋示例",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN093_recruiting.txt",
+    "variants": [
+      "txt/SYN093_recruiting.txt",
+      "pdf-scan/SYN093_recruiting.pdf"
+    ]
+  },
+  {
+    "id": "SYN094",
+    "job_id": "recruiting",
+    "synthetic_name": "冯演示",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN094_recruiting.txt",
+    "variants": [
+      "txt/SYN094_recruiting.txt"
+    ]
+  },
+  {
+    "id": "SYN095",
+    "job_id": "recruiting",
+    "synthetic_name": "朱样本",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN095_recruiting.txt",
+    "variants": [
+      "txt/SYN095_recruiting.txt"
+    ]
+  },
+  {
+    "id": "SYN096",
+    "job_id": "recruiting",
+    "synthetic_name": "胡测试",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN096_recruiting.txt",
+    "variants": [
+      "txt/SYN096_recruiting.txt",
+      "docx/SYN096_recruiting.docx"
+    ]
+  },
+  {
+    "id": "SYN097",
+    "job_id": "recruiting",
+    "synthetic_name": "邓虚构",
+    "scenario": "transferable",
+    "scenario_description": "具备相邻岗位技能，但不能直接证明必要条件",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN097_recruiting.txt",
+    "variants": [
+      "txt/SYN097_recruiting.txt",
+      "pdf-text/SYN097_recruiting.pdf"
+    ]
+  },
+  {
+    "id": "SYN098",
+    "job_id": "recruiting",
+    "synthetic_name": "马模拟",
+    "scenario": "transferable",
+    "scenario_description": "具备相邻岗位技能，但不能直接证明必要条件",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN098_recruiting.txt",
+    "variants": [
+      "txt/SYN098_recruiting.txt"
+    ]
+  },
+  {
+    "id": "SYN099",
+    "job_id": "recruiting",
+    "synthetic_name": "郭示例",
+    "scenario": "keyword_stuffing",
+    "scenario_description": "出现关键词但只是培训或课程内容",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN099_recruiting.txt",
+    "variants": [
+      "txt/SYN099_recruiting.txt"
+    ]
+  },
+  {
+    "id": "SYN100",
+    "job_id": "recruiting",
+    "synthetic_name": "唐演示",
+    "scenario": "mixed",
+    "scenario_description": "同时出现部分相关信息和否定性描述",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN100_recruiting.txt",
+    "variants": [
+      "txt/SYN100_recruiting.txt"
+    ]
+  },
+  {
+    "id": "SYN101",
+    "job_id": "inventory",
+    "synthetic_name": "林示例",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 6,
+    "file": "SYN101_inventory.txt",
+    "variants": [
+      "txt/SYN101_inventory.txt",
+      "docx/SYN101_inventory.docx"
+    ]
+  },
+  {
+    "id": "SYN102",
+    "job_id": "inventory",
+    "synthetic_name": "张演示",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 7,
+    "file": "SYN102_inventory.txt",
+    "variants": [
+      "txt/SYN102_inventory.txt",
+      "pdf-text/SYN102_inventory.pdf"
+    ]
+  },
+  {
+    "id": "SYN103",
+    "job_id": "inventory",
+    "synthetic_name": "陈样本",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 8,
+    "file": "SYN103_inventory.txt",
+    "variants": [
+      "txt/SYN103_inventory.txt",
+      "pdf-scan/SYN103_inventory.pdf"
+    ]
+  },
+  {
+    "id": "SYN104",
+    "job_id": "inventory",
+    "synthetic_name": "赵测试",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 9,
+    "file": "SYN104_inventory.txt",
+    "variants": [
+      "txt/SYN104_inventory.txt"
+    ]
+  },
+  {
+    "id": "SYN105",
+    "job_id": "inventory",
+    "synthetic_name": "周虚构",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 3,
+    "file": "SYN105_inventory.txt",
+    "variants": [
+      "txt/SYN105_inventory.txt"
+    ]
+  },
+  {
+    "id": "SYN106",
+    "job_id": "inventory",
+    "synthetic_name": "王模拟",
+    "scenario": "direct",
+    "scenario_description": "简历明确陈述必要工作经历",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 4,
+    "file": "SYN106_inventory.txt",
+    "variants": [
+      "txt/SYN106_inventory.txt",
+      "docx/SYN106_inventory.docx"
+    ]
+  },
+  {
+    "id": "SYN107",
+    "job_id": "inventory",
+    "synthetic_name": "吴示例",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 5,
+    "file": "SYN107_inventory.txt",
+    "variants": [
+      "txt/SYN107_inventory.txt",
+      "pdf-text/SYN107_inventory.pdf"
+    ]
+  },
+  {
+    "id": "SYN108",
+    "job_id": "inventory",
+    "synthetic_name": "郑演示",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 6,
+    "file": "SYN108_inventory.txt",
+    "variants": [
+      "txt/SYN108_inventory.txt"
+    ]
+  },
+  {
+    "id": "SYN109",
+    "job_id": "inventory",
+    "synthetic_name": "许样本",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 7,
+    "file": "SYN109_inventory.txt",
+    "variants": [
+      "txt/SYN109_inventory.txt"
+    ]
+  },
+  {
+    "id": "SYN110",
+    "job_id": "inventory",
+    "synthetic_name": "何测试",
+    "scenario": "paraphrase",
+    "scenario_description": "必要经历以同义描述表达",
+    "human_expected_group": "优先查看",
+    "human_required_claimed": true,
+    "years_claimed": 8,
+    "file": "SYN110_inventory.txt",
+    "variants": [
+      "txt/SYN110_inventory.txt"
+    ]
+  },
+  {
+    "id": "SYN111",
+    "job_id": "inventory",
+    "synthetic_name": "杨虚构",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN111_inventory.txt",
+    "variants": [
+      "txt/SYN111_inventory.txt",
+      "docx/SYN111_inventory.docx"
+    ]
+  },
+  {
+    "id": "SYN112",
+    "job_id": "inventory",
+    "synthetic_name": "曹模拟",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN112_inventory.txt",
+    "variants": [
+      "txt/SYN112_inventory.txt",
+      "pdf-text/SYN112_inventory.pdf"
+    ]
+  },
+  {
+    "id": "SYN113",
+    "job_id": "inventory",
+    "synthetic_name": "宋示例",
+    "scenario": "explicit_negative",
+    "scenario_description": "明确否认必要经历",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN113_inventory.txt",
+    "variants": [
+      "txt/SYN113_inventory.txt",
+      "pdf-scan/SYN113_inventory.pdf"
+    ]
+  },
+  {
+    "id": "SYN114",
+    "job_id": "inventory",
+    "synthetic_name": "冯演示",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN114_inventory.txt",
+    "variants": [
+      "txt/SYN114_inventory.txt"
+    ]
+  },
+  {
+    "id": "SYN115",
+    "job_id": "inventory",
+    "synthetic_name": "朱样本",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN115_inventory.txt",
+    "variants": [
+      "txt/SYN115_inventory.txt"
+    ]
+  },
+  {
+    "id": "SYN116",
+    "job_id": "inventory",
+    "synthetic_name": "胡测试",
+    "scenario": "insufficient",
+    "scenario_description": "经历信息不足",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN116_inventory.txt",
+    "variants": [
+      "txt/SYN116_inventory.txt",
+      "docx/SYN116_inventory.docx"
+    ]
+  },
+  {
+    "id": "SYN117",
+    "job_id": "inventory",
+    "synthetic_name": "邓虚构",
+    "scenario": "transferable",
+    "scenario_description": "具备相邻岗位技能，但不能直接证明必要条件",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN117_inventory.txt",
+    "variants": [
+      "txt/SYN117_inventory.txt",
+      "pdf-text/SYN117_inventory.pdf"
+    ]
+  },
+  {
+    "id": "SYN118",
+    "job_id": "inventory",
+    "synthetic_name": "马模拟",
+    "scenario": "transferable",
+    "scenario_description": "具备相邻岗位技能，但不能直接证明必要条件",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN118_inventory.txt",
+    "variants": [
+      "txt/SYN118_inventory.txt"
+    ]
+  },
+  {
+    "id": "SYN119",
+    "job_id": "inventory",
+    "synthetic_name": "郭示例",
+    "scenario": "keyword_stuffing",
+    "scenario_description": "出现关键词但只是培训或课程内容",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN119_inventory.txt",
+    "variants": [
+      "txt/SYN119_inventory.txt"
+    ]
+  },
+  {
+    "id": "SYN120",
+    "job_id": "inventory",
+    "synthetic_name": "唐演示",
+    "scenario": "mixed",
+    "scenario_description": "同时出现部分相关信息和否定性描述",
+    "human_expected_group": "需要确认",
+    "human_required_claimed": false,
+    "years_claimed": null,
+    "file": "SYN120_inventory.txt",
+    "variants": [
+      "txt/SYN120_inventory.txt"
+    ]
+  }
+]

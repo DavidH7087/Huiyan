@@ -2,7 +2,7 @@
 
 面向中国企业 HR 的**简洁、离线优先**的批量简历筛选软件。
 
-> **开发状态：v0.5-preview 可运行的本地原型。** 目前具备 PDF/DOCX/TXT/ZIP 导入、文字证据检索、招聘任务/历史、人工审核、Excel 导出。**可选接入本地 BGE-M3 / Reranker**（需额外安装、配置且未做真实模型性能验收）；**已增加可选本地 Tesseract OCR**（扫描件需主动开启，识别文本需人工核对）；**尚未集成** SmartResume、PaddleOCR、Qwen；**尚未打包 Windows 安装程序**。不应将当前文字匹配结果用作自动淘汰或录用决定。
+> **开发状态：v0.5-preview 可运行的本地原型。** 目前具备 PDF/DOCX/TXT/ZIP 导入、文字证据检索、招聘任务/历史、人工审核、Excel 导出。**可选接入本地 BGE-M3 / Reranker**（需额外安装、配置且未做真实模型性能验收）；**已增加可选本地 Tesseract OCR**（扫描件需主动开启，识别文本需人工核对）；**尚未集成** SmartResume、PaddleOCR、Qwen；**已有未签名的 Windows 安装器与便携测试包**（但未完成企业实机验收）。不应将当前文字匹配结果用作自动淘汰或录用决定。
 
 ## 在 GitHub Codespaces 运行
 
@@ -17,6 +17,8 @@ bash start.sh
 3. 打开自动转发的 **8000** 端口，即可使用慧眼。
 
 可先上传 `examples/` 下的三份**完全虚构的测试简历**验证基础筛选流程。
+
+**Phase 4B：合成简历测试集。** `testdata/synthetic/resumes_txt/` 已收录 120 份纯虚构简历，覆盖 6 类岗位，另含可复现的 DOCX/PDF/扫描件/ZIP 生成器、预期参考标签和测试脚本。完整多格式文件通过 `Huiyan Synthetic Corpus` GitHub Actions 生成可下载 ZIP。详见 [测试集说明](testdata/synthetic/README.md) 和 [阶段报告](docs/PHASE4B_SYNTHETIC_DATA_REPORT.md)。
 
 打开后，可依次测试：输入岗位描述 → 确认关键词 → 创建任务 → 导入简历 → 开始筛选 → 逐项查看文字证据 → 人工审核 → 导出 Excel → 查看历史轮次。
 

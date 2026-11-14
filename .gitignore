@@ -16,3 +16,4 @@ data/
 tests/artifacts/
 models/
 .hf-cache/
+testdata/synthetic/generated/
