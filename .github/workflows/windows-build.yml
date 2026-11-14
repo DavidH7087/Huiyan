@@ -18,16 +18,49 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-desktop.txt pytest httpx
+      - name: Install Chinese and English offline OCR runtime
+        shell: pwsh
+        run: |
+          choco install tesseract --no-progress -y
+          $root = Join-Path $env:ProgramFiles 'Tesseract-OCR'
+          if (-not (Test-Path (Join-Path $root 'tesseract.exe'))) {
+            $root = Join-Path ${env:ProgramFiles(x86)} 'Tesseract-OCR'
+          }
+          if (-not (Test-Path (Join-Path $root 'tesseract.exe'))) { throw 'Tesseract Windows runtime missing' }
+          $data = Join-Path $root 'tessdata'
+          New-Item -ItemType Directory -Force -Path $data | Out-Null
+          foreach ($lang in @('chi_sim','eng')) {
+            $url = "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/$lang.traineddata"
+            Invoke-WebRequest -Uri $url -OutFile (Join-Path $data "$lang.traineddata")
+            if ((Get-Item (Join-Path $data "$lang.traineddata")).Length -lt 100000) { throw "OCR language package missing: $lang" }
+          }
+          & (Join-Path $root 'tesseract.exe') --list-langs
       - name: Run API tests on Windows
-        run: python -m pytest -q tests/test_api.py tests/test_profile_api.py
+        run: |
+          pip install reportlab
+          python -m pytest -q tests/test_api.py tests/test_profile_api.py tests/test_format_ingestion.py
       - name: Create portable EXE
         shell: pwsh
         run: |
-          pyinstaller --clean --noconfirm --onedir --windowed --name Huiyan --add-data "frontend:frontend" --collect-submodules uvicorn --collect-all webview desktop.py
+          pyinstaller --clean --noconfirm --onedir --windowed --name Huiyan --add-data "frontend:frontend" --collect-submodules uvicorn --collect-all webview --collect-all pytesseract --collect-all pypdfium2 --collect-all PIL desktop.py
+      - name: Bundle offline OCR into Windows application
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:ProgramFiles 'Tesseract-OCR'
+          if (-not (Test-Path (Join-Path $source 'tesseract.exe'))) {
+            $source = Join-Path ${env:ProgramFiles(x86)} 'Tesseract-OCR'
+          }
+          $target = 'dist\\Huiyan\\ocr'
+          New-Item -ItemType Directory -Force -Path $target | Out-Null
+          Copy-Item -Path (Join-Path $source '*') -Destination $target -Recurse -Force
+          foreach ($needed in @('tesseract.exe', 'tessdata\\chi_sim.traineddata', 'tessdata\\eng.traineddata')) {
+            if (-not (Test-Path (Join-Path $target $needed))) { throw "Missing bundled OCR file: $needed" }
+          }
       - name: Smoke test source desktop launcher
         shell: pwsh
         run: |
           $env:HUIYAN_DESKTOP_SMOKE = '1'
+          $env:HUIYAN_DESKTOP_SMOKE_REQUIRE_OCR = '1'
           $env:HUIYAN_DATA_DIR = Join-Path $env:RUNNER_TEMP 'huiyan-smoke-source'
           python desktop.py
           if ($LASTEXITCODE -ne 0) { throw "Desktop source failed with $LASTEXITCODE" }
@@ -35,6 +68,7 @@ jobs:
         shell: pwsh
         run: |
           $env:HUIYAN_DESKTOP_SMOKE = '1'
+          $env:HUIYAN_DESKTOP_SMOKE_REQUIRE_OCR = '1'
           $env:HUIYAN_DATA_DIR = Join-Path $env:RUNNER_TEMP 'huiyan-smoke-exe'
           $env:HUIYAN_DESKTOP_SMOKE_LOG = Join-Path $env:RUNNER_TEMP 'huiyan-smoke-traceback.txt'
           $exe = (Resolve-Path '.\\dist\\Huiyan\\Huiyan.exe').Path
@@ -77,6 +111,7 @@ jobs:
           $installedExe = Join-Path $target 'Huiyan.exe'
           if (-not (Test-Path $installedExe)) { throw 'Installed EXE is missing' }
           $env:HUIYAN_DESKTOP_SMOKE = '1'
+          $env:HUIYAN_DESKTOP_SMOKE_REQUIRE_OCR = '1'
           $env:HUIYAN_DATA_DIR = Join-Path $env:RUNNER_TEMP 'huiyan-installed-smoke'
           $app = Start-Process -FilePath $installedExe -Wait -PassThru
           if ($app.ExitCode -ne 0) { throw "Installed EXE smoke failed with $($app.ExitCode)" }

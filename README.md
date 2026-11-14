@@ -2,7 +2,7 @@
 
 面向中国企业 HR 的**简洁、离线优先**的批量简历筛选软件。
 
-> **开发状态：v0.5-preview 可运行的本地原型。** 目前具备 PDF/DOCX/TXT/ZIP 导入、文字证据检索、招聘任务/历史、人工审核、Excel 导出。**可选接入本地 BGE-M3 / Reranker**（需额外安装、配置且未做真实模型性能验收）；**已增加可选本地 Tesseract OCR**（扫描件需主动开启，识别文本需人工核对）；**尚未集成** SmartResume、PaddleOCR、Qwen；**已有未签名的 Windows 安装器与便携测试包**（但未完成企业实机验收）。不应将当前文字匹配结果用作自动淘汰或录用决定。
+> **开发状态：v0.5-preview 可运行的本地原型。** 目前具备 PDF/DOCX/TXT/ZIP 导入、文字证据检索、招聘任务/历史、人工审核、Excel 导出。**可选接入本地 BGE-M3 / Reranker**（需额外安装、配置且未做真实模型性能验收）；**已增加可选本地 Tesseract OCR**（仅在本机依赖就绪时自动启用，识别文本需人工核对）；**尚未集成** SmartResume、PaddleOCR、Qwen；**已有未签名的 Windows 安装器与便携测试包**（但未完成企业实机验收）。不应将当前文字匹配结果用作自动淘汰或录用决定。
 
 ## 在 GitHub Codespaces 运行
 
@@ -110,3 +110,7 @@ Windows 工作流另构建 Inno Setup 单文件安装包 `Huiyan-Setup-0.5.0-pre
 - **Word 提取**：支持正文、表格、页眉页脚、浮动文本框，并处理整页为图片的 DOCX。
 - **诊断提示**：无法读出文字时显示 OCR 状态和实际原因，不默默当作空白简历。
 - OCR 的提取内容均需要人工核实，不能直接判定岗位资格。详见 [OCR 使用说明](docs/OCR_SETUP.md) 及 [阶段报告](docs/PHASE4D_REPORT.md)。
+
+## Phase 4E：离线 Windows OCR 随包部署
+
+Windows 构建会将 Tesseract OCR 与简体中文 / 英文语言数据打进安装器和便携包，扫描件识别无需云端 API。安装包完成前必须通过 Windows CI 的三项冒烟检查：源码启动、打包 EXE 启动、安装后 EXE 启动，而且三处都要求 `ocr.state=ready`。当前为 **v0.5.1-preview 候选**，请以对应工作流的通过结果为准，不代表真实简历识别准确性已经验收。

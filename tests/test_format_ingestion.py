@@ -62,7 +62,8 @@ def test_scanned_pdf_with_real_local_ocr_when_installed():
         pytest.skip('Local OCR not present')
     image = Image.new('RGB', (1200, 420), 'white')
     draw = ImageDraw.Draw(image)
-    font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+    font_path = ('C:/Windows/Fonts/arial.ttf' if __import__('os').name == 'nt' else
+                 '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
     font=ImageFont.truetype(font_path,42) if Path(font_path).is_file() else None
     draw.text((35, 115), 'B2B SALES EXPERIENCE', fill='black', font=font)
     f = io.BytesIO(); c = canvas.Canvas(f, pagesize=(600, 210));c.drawImage(ImageReader(image),0,0,600,210);c.save()
@@ -76,7 +77,8 @@ def test_word_image_only_resume_needs_ocr_or_warning():
     from PIL import Image, ImageDraw, ImageFont
     image = Image.new('RGB', (1200, 600), 'white')
     draw = ImageDraw.Draw(image)
-    font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+    font_path = ('C:/Windows/Fonts/arial.ttf' if __import__('os').name == 'nt' else
+                 '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
     font=ImageFont.truetype(font_path,42) if Path(font_path).is_file() else None
     draw.text((35, 140), 'EXPERIENCED BACKEND ENGINEER', fill='black', font=font)
     img=io.BytesIO();image.save(img,format='PNG');img.seek(0)

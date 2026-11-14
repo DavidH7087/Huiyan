@@ -5,6 +5,7 @@ No public network listener, cloud AI service, or external account is required.
 """
 from __future__ import annotations
 
+import json
 import os
 import socket
 import sys
@@ -58,6 +59,11 @@ def run() -> int:
                 time.sleep(0.1)
         else:
             raise RuntimeError('慧眼本地服务未能在规定时间内启动')
+        if os.getenv('HUIYAN_DESKTOP_SMOKE_REQUIRE_OCR') == '1':
+            with urlopen(url + '/api/health', timeout=3) as response:
+                ocr_state = json.load(response).get('ocr', {}).get('state')
+            if ocr_state != 'ready':
+                raise RuntimeError('Windows 便携版 OCR 未就绪：' + str(ocr_state))
         # CI verifies the *bundled executable* without opening a GUI.
         if os.getenv('HUIYAN_DESKTOP_SMOKE') == '1':
             return 0
