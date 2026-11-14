@@ -24,13 +24,21 @@ jobs:
         shell: pwsh
         run: |
           pyinstaller --clean --noconfirm --onedir --windowed --name Huiyan --add-data "frontend:frontend" --collect-submodules uvicorn --collect-all webview desktop.py
+      - name: Smoke test source desktop launcher
+        shell: pwsh
+        run: |
+          $env:HUIYAN_DESKTOP_SMOKE = '1'
+          $env:HUIYAN_DATA_DIR = Join-Path $env:RUNNER_TEMP 'huiyan-smoke-source'
+          python desktop.py
+          if ($LASTEXITCODE -ne 0) { throw "Desktop source failed with $LASTEXITCODE" }
       - name: Smoke test bundled EXE (no GUI)
         shell: pwsh
         run: |
           $env:HUIYAN_DESKTOP_SMOKE = '1'
-          $env:HUIYAN_DATA_DIR = Join-Path $env:RUNNER_TEMP 'huiyan-smoke'
-          & '.\dist\Huiyan\Huiyan.exe'
-          if ($LASTEXITCODE -ne 0) { throw "Desktop bundled startup failed with $LASTEXITCODE" }
+          $env:HUIYAN_DATA_DIR = Join-Path $env:RUNNER_TEMP 'huiyan-smoke-exe'
+          $exe = (Resolve-Path '.\\dist\\Huiyan\\Huiyan.exe').Path
+          $process = Start-Process -FilePath $exe -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Desktop bundled startup failed with $($process.ExitCode)" }
       - name: Package portable folder
         shell: pwsh
         run: |
