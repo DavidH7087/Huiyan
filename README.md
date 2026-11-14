@@ -2,7 +2,7 @@
 
 面向中国企业 HR 的**简洁、离线优先**的批量简历筛选软件。
 
-> **开发状态：v0.3 可运行的本地原型。** 目前具备 PDF/DOCX/TXT/ZIP 导入、文字证据检索、招聘任务/历史、人工审核、Excel 导出。**可选接入本地 BGE-M3 / Reranker**（需额外安装、配置且未做真实模型性能验收）；**已增加可选本地 Tesseract OCR**（扫描件需主动开启，识别文本需人工核对）；**尚未集成** SmartResume、PaddleOCR、Qwen；**尚未打包 Windows 安装程序**。不应将当前文字匹配结果用作自动淘汰或录用决定。
+> **开发状态：v0.4 可运行的本地原型。** 目前具备 PDF/DOCX/TXT/ZIP 导入、文字证据检索、招聘任务/历史、人工审核、Excel 导出。**可选接入本地 BGE-M3 / Reranker**（需额外安装、配置且未做真实模型性能验收）；**已增加可选本地 Tesseract OCR**（扫描件需主动开启，识别文本需人工核对）；**尚未集成** SmartResume、PaddleOCR、Qwen；**尚未打包 Windows 安装程序**。不应将当前文字匹配结果用作自动淘汰或录用决定。
 
 ## 在 GitHub Codespaces 运行
 
@@ -57,6 +57,10 @@ python -m pytest -q
 ## Phase 2B 已完成
 
 新增可选 Tesseract OCR 与逐页文字来源标记、Word 表格顺序提取、导入核对提示。配置见 [`docs/OCR_SETUP.md`](docs/OCR_SETUP.md)，报告见 [`docs/PHASE2B_REPORT.md`](docs/PHASE2B_REPORT.md)。
+
+## Phase 2C：结构化候选人信息
+
+当前可自动提取简历**明确写出的**学历词、部分技术技能、文字描述的工作年限和相关经历片段，每条信息保留页码/原文及 OCR 来源。它只是检索辅助，不是学历或技能核验，也不会推测性别、年龄或婚姻状况。`/api/tasks/{task_id}/resumes/{resume_id}/profile` 提供结构化 JSON，候选人阅读页可显示该信息。已导入的旧简历会在首次阅读时安全生成档案。
 
 ## 下一阶段
 

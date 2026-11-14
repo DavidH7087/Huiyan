@@ -20,6 +20,7 @@ from .storage import Store
 from .engine import split_terms, suggest_conditions, evaluate
 from .semantic import LocalSemanticService
 from .ocr import LocalOcrService
+from .profile import PROFILE_VERSION, extract_profile
 from starlette.concurrency import run_in_threadpool
 from .parsing import ParseError, expand_upload, extract_pages, extract_identity, MAX_ARCHIVE
 
@@ -76,12 +77,25 @@ def get_run(cn,task_id,run_id):
     return row_dict(row)
 
 
+def load_resume_profile(cn,resume_id:int,pages:list[dict]) -> dict:
+    cached=cn.execute('SELECT extractor_version,profile_json FROM resume_profiles WHERE resume_id=?',
+                      (resume_id,)).fetchone()
+    if cached and cached['extractor_version']==PROFILE_VERSION:
+        return json.loads(cached['profile_json'])
+    profile=extract_profile(pages)
+    cn.execute('''INSERT INTO resume_profiles(resume_id,extractor_version,profile_json)
+        VALUES(?,?,?) ON CONFLICT(resume_id) DO UPDATE SET
+        extractor_version=excluded.extractor_version,profile_json=excluded.profile_json,
+        updated_at=datetime('now')''',(resume_id,PROFILE_VERSION,dumps(profile)))
+    return profile
+
+
 def create_app(data_dir:Path|None=None):
     root=Path(data_dir or os.environ.get('HUIYAN_DATA_DIR',str(Path(__file__).resolve().parents[1]/'data')))
     store=Store(root)
     semantic=LocalSemanticService()
     ocr=LocalOcrService()
-    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.3.0')
+    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.4.0')
 
     @app.get('/api/health')
     def health():
@@ -174,6 +188,8 @@ def create_app(data_dir:Path|None=None):
                     cn.execute('INSERT INTO resumes(task_id,filename,content_hash,stored_file,name,phone,email,pages_json) VALUES(?,?,?,?,?,?,?,?)',
                         (task_id,name,file_hash,stored_file,person['name'],person['phone'],person['email'],dumps(pages)))
                     imported.append(name)
+                    row_id=cn.execute('SELECT id FROM resumes WHERE task_id=? AND content_hash=?',(task_id,file_hash)).fetchone()[0]
+                    load_resume_profile(cn,row_id,pages)
                     caution=[p for p in pages if p.get('warning')]
                     if caution:
                         count_ocr=sum(p.get('source')=='ocr' for p in caution)
@@ -198,8 +214,20 @@ def create_app(data_dir:Path|None=None):
             row=cn.execute('SELECT * FROM resumes WHERE task_id=? AND id=?',(task_id,resume_id)).fetchone()
             if not row:
                 raise HTTPException(404,'简历不存在')
-            return {'id':resume_id,'filename':row['filename'],'pages':json.loads(row['pages_json']),
-                    'name':row['name'],'email':row['email'],'phone':row['phone']}
+            pages=json.loads(row['pages_json'])
+            profile=load_resume_profile(cn,resume_id,pages)
+            return {'id':resume_id,'filename':row['filename'],'pages':pages,
+                    'name':row['name'],'email':row['email'],'phone':row['phone'],
+                    'profile':profile}
+
+    @app.get('/api/tasks/{task_id}/resumes/{resume_id}/profile')
+    def resume_profile(task_id:int,resume_id:int):
+        with store.connect() as cn:
+            get_task(cn,task_id)
+            row=cn.execute('SELECT pages_json FROM resumes WHERE task_id=? AND id=?',(task_id,resume_id)).fetchone()
+            if not row:
+                raise HTTPException(404,'简历不存在')
+            return load_resume_profile(cn,resume_id,json.loads(row['pages_json']))
 
     @app.get('/api/tasks/{task_id}/resumes/{resume_id}/original')
     def resume_original(task_id:int,resume_id:int):
