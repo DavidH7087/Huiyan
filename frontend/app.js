@@ -2,7 +2,7 @@ const view = document.getElementById('view');
 const nav = [...document.querySelectorAll('[data-view]')];
 const state = {
   page:'home', tasks:[], task:null, runs:[], run:null, result:null, selected:null,
-  description:'', descriptionLeads:[], required:[], preferred:[], excluded:[], matchMode:'aliases', title:'', editing:false, filter:'全部', busy:false, preview:null,
+  description:'', descriptionLeads:[], required:[], preferred:[], excluded:[], matchMode:'aliases', termModes:{}, title:'', editing:false, filter:'全部', busy:false, preview:null,
   currentText:null, uploadSummary:null, importRecords:[], stagedFiles:[], retryFiles:[], historyCompare:null, retentionReport:null, diagnostics:null, reviewEvents:[], taskChanges:[], search:'', health:null, profileStatus:null, recoveryNotice:'',
 };
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -36,6 +36,7 @@ function confirm(){return `<div class="page-title"><h1>${state.editing?'编辑�
 <div class="field"><label for="bonusTerms">优先考虑</label><textarea id="bonusTerms" style="min-height:110px">${e(state.preferred.join('、'))}</textarea><small>这些条件有相关经历则优先显示，但并非必要条件。</small></div></div>
 <div class="form-grid"><div class="field"><label for="excludedTerms">排除线索（选填）</label><textarea id="excludedTerms" style="min-height:72px" placeholder="例如：仅短期兼职、未独立负责">${e(state.excluded.join('、'))}</textarea><small>只标记需要 HR 复核的线索，系统不会自动淘汰或删除简历。不要使用年龄、性别等敏感个人特征。</small></div>
 <div class="field"><label for="keywordMode">关键词匹配方式</label><select id="keywordMode"><option value="aliases" ${state.matchMode==='aliases'?'selected':''}>智能同义（默认）</option><option value="exact" ${state.matchMode==='exact'?'selected':''}>精确文字（不扩展同义词）</option></select><small>仅影响关键词检索，不代表判断应聘者真实能力。</small></div></div>
+<details class="audit-log"><summary>高级：为指定条件使用精确匹配</summary><p class="hint">请填写需要逐字出现的条件，其他条件仍按上方选择的方式检索。多个条件用顿号隔开。</p><textarea id="exactTerms" style="min-height:70px" placeholder="例如：Java、ISO9001">${e(Object.keys(state.termModes).filter(k=>state.termModes[k]==='exact').join('、'))}</textarea></details>
 <div class="notice">自动提取只是建议。描述中的补充线索只辅助检索，不会自动成为必须条件；“最好”“不限”等表达请人工核对。</div>
 <div class="actions" style="margin-top:22px"><button class="btn secondary" data-go="home">返回修改</button><button class="btn" id="createTask">${state.editing?'保存条件（历史轮次不变）':'创建任务，添加简历 →'}</button></div></div>`}
 function importPage(){return `<div class="page-title"><h1>添加简历</h1><p>${e(state.task?.title||'')} · 可以一次添加多个文件或整个文件夹。</p></div>
@@ -181,20 +182,21 @@ view.addEventListener('click',ev=>withBusy(async()=>{
   if(target.id==='describeNext'){
     state.description=el('newDescription').value.trim();if(!state.description){toast('请先输入岗位要求');return}
     const suggestion=await post('/api/criteria/suggest',{description:state.description});
-    state.required=suggestion.required;state.preferred=suggestion.preferred;state.descriptionLeads=suggestion.description_leads||[];state.excluded=[];state.matchMode='aliases';state.title='';state.editing=false;setPage('confirm');return;
+    state.required=suggestion.required;state.preferred=suggestion.preferred;state.descriptionLeads=suggestion.description_leads||[];state.excluded=[];state.matchMode='aliases';state.termModes={};state.title='';state.editing=false;setPage('confirm');return;
   }
   if(target.id==='createTask'){
-    state.title=el('jobTitle').value.trim();state.description=el('descConfirm').value.trim();state.descriptionLeads=terms(el('descClues').value);state.required=terms(el('mustTerms').value);state.preferred=terms(el('bonusTerms').value);state.excluded=terms(el('excludedTerms').value);state.matchMode=el('keywordMode').value;
+    state.title=el('jobTitle').value.trim();state.description=el('descConfirm').value.trim();state.descriptionLeads=terms(el('descClues').value);state.required=terms(el('mustTerms').value);state.preferred=terms(el('bonusTerms').value);state.excluded=terms(el('excludedTerms').value);state.matchMode=el('keywordMode').value;state.termModes=Object.fromEntries(terms(el('exactTerms').value).map(x=>[x,'exact']));
+    if(Object.keys(state.termModes).length>80){toast('精确匹配条件最多 80 项');return}
     if(state.descriptionLeads.length>8){toast('描述参考线索最多保留 8 项');return}
     if(!state.title){toast('请输入岗位或任务名称');return}
     if(!state.description&&!state.required.length&&!state.preferred.length){toast('请填写招聘描述或至少一个筛选关键词');return}
-    const config={title:state.title,description:state.description,description_leads:state.descriptionLeads,required:state.required,preferred:state.preferred,excluded:state.excluded,match_mode:state.matchMode};
+    const config={title:state.title,description:state.description,description_leads:state.descriptionLeads,required:state.required,preferred:state.preferred,excluded:state.excluded,match_mode:state.matchMode,term_modes:state.termModes};
     if(state.editing){state.task=await patch(`/api/tasks/${state.task.id}`,config);state.taskChanges=await api(`/api/tasks/${state.task.id}/changes`);state.editing=false;await fetchTasks();if(state.result?.run?.id)await showRun(state.result.run.id);else setPage('import');toast('招聘要求已更新；既有筛选记录仍保持不变');return;}
     state.task=await post('/api/tasks',config);
     state.task.resume_count=0;state.uploadSummary=null;state.importRecords=[];state.stagedFiles=[];state.retryFiles=[];await fetchTasks();setPage('import');toast('招聘任务已创建');return;
   }
   if(target.id==='editCriteria'){
-    const task=state.task;state.editing=true;state.title=task.title;state.description=task.description;state.descriptionLeads=task.description_leads!==null?task.description_leads:(await post('/api/criteria/suggest',{description:task.description})).description_leads||[];state.required=[...task.required];state.preferred=[...task.preferred];state.excluded=[...task.excluded];state.matchMode=task.match_mode;setPage('confirm');return;
+    const task=state.task;state.editing=true;state.title=task.title;state.description=task.description;state.descriptionLeads=task.description_leads!==null?task.description_leads:(await post('/api/criteria/suggest',{description:task.description})).description_leads||[];state.required=[...task.required];state.preferred=[...task.preferred];state.excluded=[...task.excluded];state.matchMode=task.match_mode;state.termModes={...task.term_modes};setPage('confirm');return;
   }
   if(target.id==='closeCompare'){state.historyCompare=null;render();return;}
   if(target.id==='checkIntegrity'){state.diagnostics=await api('/api/system/diagnostics');render();return;}

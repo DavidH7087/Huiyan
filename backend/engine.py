@@ -174,16 +174,17 @@ def description_clues(description: str, limit: int = 8) -> list[str]:
 
 
 def evaluate(required: list[str], preferred: list[str], pages: list[dict], semantic_matcher=None,
-             excluded: list[str] | None = None, match_mode: str = 'aliases') -> dict:
+             excluded: list[str] | None = None, match_mode: str = 'aliases',
+             term_modes: dict[str,str] | None = None) -> dict:
     checks=[]
     excluded=excluded or []
     for term, kind in [(x, "required") for x in required]+[(x, "preferred") for x in preferred]:
-        evidence=find_evidence(term,pages,match_mode)
+        evidence=find_evidence(term,pages,(term_modes or {}).get(term,match_mode))
         checks.append({"term":term,"kind":kind,"state":("OCR文字待核实" if evidence and evidence.get("source")=="ocr" else "有相关文字" if evidence else "待核实"),
                        "evidence":evidence,"semantic_hint":None})
     # Exclusion evidence is a manual verification signal, never a deletion rule.
     for term in excluded:
-        evidence=find_evidence(term,pages,match_mode)
+        evidence=find_evidence(term,pages,(term_modes or {}).get(term,match_mode))
         checks.append({'term':term,'kind':'excluded',
                        'state':('OCR排除线索待核实' if evidence and evidence.get('source')=='ocr'
                                 else '排除线索待人工核实' if evidence else '未发现排除线索'),

@@ -44,6 +44,7 @@ class TaskCreate(BaseModel):
     excluded: list[str]=Field(default_factory=list)
     match_mode: Literal['aliases','exact']='aliases'
     description_leads: list[str]|None=Field(default=None,max_length=8)
+    term_modes: dict[str,Literal['aliases','exact']]=Field(default_factory=dict,max_length=80)
 
 class TaskPatch(BaseModel):
     title: str|None=None
@@ -53,6 +54,7 @@ class TaskPatch(BaseModel):
     excluded: list[str]|None=None
     match_mode: Literal['aliases','exact']|None=None
     description_leads: list[str]|None=Field(default=None,max_length=8)
+    term_modes: dict[str,Literal['aliases','exact']]|None=Field(default=None,max_length=80)
     archived: bool|None=None
 
 class TaskDelete(BaseModel):
@@ -95,13 +97,14 @@ def get_task(cn,task_id):
     d['preferred']=json.loads(d['preferred'])
     d['excluded']=json.loads(d['excluded'])
     d['description_leads']=json.loads(d['description_leads']) if d['description_leads'] is not None else None
+    d['term_modes']=json.loads(d['term_modes'])
     d['archived']=bool(d['archived'])
     return d
 
 def task_audit_snapshot(task):
     return {key:task.get(key) for key in
             ('title','description','required','preferred','excluded',
-             'match_mode','description_leads','archived')}
+             'match_mode','description_leads','term_modes','archived')}
 
 
 def get_run(cn,task_id,run_id):
@@ -238,9 +241,10 @@ def create_app(data_dir:Path|None=None):
     @app.post('/api/tasks')
     def new_task(payload:TaskCreate):
         with store.connect() as cn:
-            c=cn.execute('INSERT INTO tasks(title,description,required,preferred,excluded,match_mode,description_leads) VALUES(?,?,?,?,?,?,?)',
+            c=cn.execute('INSERT INTO tasks(title,description,required,preferred,excluded,match_mode,description_leads,term_modes) VALUES(?,?,?,?,?,?,?,?)',
                 (payload.title.strip(),payload.description,dumps(split_terms(payload.required)),dumps(split_terms(payload.preferred)),dumps(split_terms(payload.excluded)),payload.match_mode,
-                 dumps(split_terms(payload.description_leads)) if payload.description_leads is not None else None))
+                 dumps(split_terms(payload.description_leads)) if payload.description_leads is not None else None,
+                 dumps(payload.term_modes)))
             return get_task(cn,c.lastrowid)
 
     @app.get('/api/tasks/{task_id}')
@@ -261,6 +265,8 @@ def create_app(data_dir:Path|None=None):
             for key,val in edits.items():
                 if key in ('required','preferred','excluded') or (key=='description_leads' and val is not None):
                     val=dumps(split_terms(val))
+                if key=='term_modes':
+                    val=dumps(val)
                 if key=='archived':
                     val=int(val)
                 if key=='title' and not str(val or '').strip():
@@ -548,12 +554,13 @@ def create_app(data_dir:Path|None=None):
                 'excluded':snapshot.get('excluded',[]),
                 'match_mode':snapshot.get('match_mode','aliases'),
                 'description_leads':snapshot.get('description_leads',[]),
+                'term_modes':snapshot.get('term_modes',{}),
             }
             cn.execute("""UPDATE tasks SET required=?,preferred=?,excluded=?,match_mode=?,
-                description_leads=? WHERE id=?""",
+                description_leads=?,term_modes=? WHERE id=?""",
                 (dumps(updates['required']),dumps(updates['preferred']),
                  dumps(updates['excluded']),updates['match_mode'],
-                 dumps(updates['description_leads']),task_id))
+                 dumps(updates['description_leads']),dumps(updates['term_modes']),task_id))
             restored=get_task(cn,task_id)
             if task_audit_snapshot(restored)!=prior:
                 cn.execute("""INSERT INTO task_events(task_id,action,previous_json,next_json)
@@ -640,7 +647,7 @@ def create_app(data_dir:Path|None=None):
             matcher=semantic.get_matcher()
             criteria={'required':required,'preferred':preferred,'excluded':excluded,'match_mode':match_mode,'query':payload.query,
                       'description_leads':description_leads, 'supplementary_leads':additional,
-                      'task_preferred':task['preferred'],
+                      'task_preferred':task['preferred'], 'term_modes':task['term_modes'],
                       'engine':'hybrid_retrieval_v0.2' if matcher else 'local_evidence_v1',
                       'semantic':semantic.status(), 'source_filter':payload.source_filter,
                       'retrieval':'bm25_lexical_v1'}
@@ -664,7 +671,8 @@ def create_app(data_dir:Path|None=None):
             query_text=' '.join([task['description'], *required, *preferred, payload.query])
             relevance=bm25_relevance(query_text, corpus)
             for resume,pages,relevance_score in zip(source,parsed,relevance):
-                score=evaluate(required,preferred,pages,semantic_matcher=matcher,excluded=excluded,match_mode=match_mode)
+                score=evaluate(required,preferred,pages,semantic_matcher=matcher,excluded=excluded,
+                               match_mode=match_mode,term_modes=task['term_modes'])
                 # Capture the human review state at round creation, independently
                 # from the up-to-date review overlay returned to the results UI.
                 prior=cn.execute('SELECT status,note FROM reviews WHERE task_id=? AND resume_id=?',
@@ -688,6 +696,7 @@ def create_app(data_dir:Path|None=None):
             preferred=original.get('preferred',[])
             excluded=original.get('excluded',[])
             mode=original.get('match_mode','aliases')
+            term_modes=original.get('term_modes',{})
             criteria={**original,'replay_of':run_id,'source_filter':'全部',
                       'replay_scope':'all_current_resumes'}
             name=('复用 · '+old['name'])[:100]
@@ -701,7 +710,7 @@ def create_app(data_dir:Path|None=None):
             matcher=semantic.get_matcher()
             for row,parts,relevance_score in zip(source,pages,scores):
                 evaluation=evaluate(required,preferred,parts,semantic_matcher=matcher,
-                                    excluded=excluded,match_mode=mode)
+                                    excluded=excluded,match_mode=mode,term_modes=term_modes)
                 prior=cn.execute('SELECT status,note FROM reviews WHERE task_id=? AND resume_id=?',
                                  (task_id,row['id'])).fetchone()
                 evaluation['review_at_run']=({'status':prior['status'],'note':prior['note']}

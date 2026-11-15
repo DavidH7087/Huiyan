@@ -7,7 +7,7 @@
 
 | 阶段 | 核心实现 | 自动化验收 | 仍待外部验收 |
 | --- | --- | --- | --- |
-| Phase 1 自然语言与混合筛选 | 仅凭描述创建岗位；描述线索限量、HR 可编辑/清空；必须/优先/排除条件独立保存；更改不覆盖旧轮次 | `tests/test_description_screening.py`、`tests/test_description_clue_edits.py`、`tests/test_semantic.py` | 多岗位真实脱敏样本精度/召回率、歧义与否定语句、职业同义词的人工标注评估 |
+| Phase 1 自然语言与混合筛选 | 仅凭描述创建岗位；描述线索限量、HR 可编辑/清空；必须/优先/排除条件独立保存；可选逐项精确匹配；更改不覆盖旧轮次 | `tests/test_description_screening.py`、`tests/test_description_clue_edits.py`、`tests/test_semantic.py` | 多岗位真实脱敏样本精度/召回率、歧义与否定语句、职业同义词的人工标注评估 |
 | Phase 2 完整招聘历史 | 轮次筛选快照、两轮候选人和分组比较、复用旧条件生成新轮次、恢复旧轮次到岗位设置、编辑/恢复操作审计、人工审核状态快照 | `tests/test_round_history.py`、`tests/test_task_change_history.py`、Chromium E2E | 历史批量导出、招聘人员对“当前审核”与“历史审核”的可理解性观察 |
 | Phase 3 批量导入 | 拖入文件、文件夹输入、每批 10 份上传、导入日志、问题明细和失败文件重试；哈希去重与每文件单独数据库提交 | `tests/test_format_ingestion.py`、`tests/test_bulk_500_smoke.py`、Chromium E2E | 真实不同版式 PDF/DOCX/扫描件、500–1000 份混合文件及 OCR 的时间/内存压力测试；崩溃后异步任务恢复 |
 | Phase 4 隐私与档案安全 | 本地 Host/Origin/会话保护；加密 .hyb 备份和隔离恢复；单候选人永久删除；候选人保留期限只读检查；SQLite 和原件完整性统计 | `tests/test_session_security.py`、`tests/test_backup.py`、`tests/test_candidate_erasure.py`、`tests/test_retention_diagnostics.py` | 企业身份/权限体系、Windows 磁盘/数据库静态加密、内部备份管理、信息保留政策、合法性评估 |
