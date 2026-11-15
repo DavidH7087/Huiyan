@@ -96,3 +96,32 @@ def test_invalid_word_and_pdf_are_usable_errors():
     for name in ('bad.pdf','bad.docx'):
         with pytest.raises(ParseError):
             extract_pages(name, b'not valid content')
+
+
+
+def test_docx_archive_rejects_parent_paths_before_parsing():
+    import zipfile
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, 'w') as zf:
+        zf.writestr('../outside.txt', 'synthetic malicious path')
+    with pytest.raises(ParseError, match='不安全'):
+        extract_pages('unsafe.docx', archive.getvalue())
+
+
+def test_docx_archive_blocks_extreme_uncompressed_size_without_expanding(tmp_path, monkeypatch):
+    import zipfile
+    from backend.parsing import MAX_ARCHIVE
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, 'w') as zf:
+        zf.writestr('word/media/image.png', b'not-a-real-image')
+    original = zipfile.ZipFile.infolist
+
+    def fake_metadata(self):
+        members = original(self)
+        for member in members:
+            member.file_size = MAX_ARCHIVE + 1
+        return members
+
+    monkeypatch.setattr(zipfile.ZipFile, 'infolist', fake_metadata)
+    with pytest.raises(ParseError, match='解压后内容超过'):
+        extract_pages('oversized.docx', archive.getvalue())
