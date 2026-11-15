@@ -98,6 +98,12 @@ def get_task(cn,task_id):
     d['archived']=bool(d['archived'])
     return d
 
+def task_audit_snapshot(task):
+    return {key:task.get(key) for key in
+            ('title','description','required','preferred','excluded',
+             'match_mode','description_leads','archived')}
+
+
 def get_run(cn,task_id,run_id):
     row=cn.execute('SELECT * FROM runs WHERE id=? AND task_id=?',(run_id,task_id)).fetchone()
     if not row:
@@ -249,7 +255,7 @@ def create_app(data_dir:Path|None=None):
     @app.patch('/api/tasks/{task_id}')
     def patch_task(task_id:int, payload:TaskPatch):
         with store.connect() as cn:
-            get_task(cn,task_id)
+            before=get_task(cn,task_id)
             edits=payload.model_dump(exclude_unset=True)
             fields=[]; values=[]
             for key,val in edits.items():
@@ -262,7 +268,25 @@ def create_app(data_dir:Path|None=None):
                 fields.append(f'{key}=?'); values.append(val)
             if fields:
                 cn.execute(f'UPDATE tasks SET {", ".join(fields)} WHERE id=?',(*values,task_id))
+                after=get_task(cn,task_id)
+                if task_audit_snapshot(before)!=task_audit_snapshot(after):
+                    cn.execute("""INSERT INTO task_events(task_id,action,previous_json,next_json)
+                        VALUES(?,?,?,?)""",(task_id,'task_edit',
+                        dumps(task_audit_snapshot(before)),dumps(task_audit_snapshot(after))))
             return get_task(cn,task_id)
+
+    @app.get('/api/tasks/{task_id}/changes')
+    def task_changes(task_id:int):
+        with store.connect() as cn:
+            get_task(cn,task_id)
+            events=[]
+            for row in cn.execute("""SELECT id,action,previous_json,next_json,occurred_at
+                FROM task_events WHERE task_id=? ORDER BY id DESC LIMIT 200""",(task_id,)):
+                event=dict(row)
+                event['previous']=json.loads(event.pop('previous_json'))
+                event['next']=json.loads(event.pop('next_json'))
+                events.append(event)
+            return events
 
     @app.delete('/api/tasks/{task_id}')
     def delete_archived_task(task_id:int, payload:TaskDelete):
@@ -283,6 +307,7 @@ def create_app(data_dir:Path|None=None):
             cn.execute('DELETE FROM review_events WHERE task_id=?',(task_id,))
             cn.execute('DELETE FROM imports WHERE task_id=?',(task_id,))
             cn.execute('DELETE FROM redaction_events WHERE task_id=?',(task_id,))
+            cn.execute('DELETE FROM task_events WHERE task_id=?',(task_id,))
             cn.execute('DELETE FROM resumes WHERE task_id=?',(task_id,))
             cn.execute('DELETE FROM tasks WHERE id=?',(task_id,))
         failed=[]
@@ -505,6 +530,38 @@ def create_app(data_dir:Path|None=None):
                 out.append(d)
             return out
 
+    @app.post('/api/tasks/{task_id}/runs/{run_id}/restore-criteria')
+    def restore_round_criteria(task_id:int,run_id:int):
+        """Restore job settings from an immutable round, keeping an audit event."""
+        with store.connect() as cn:
+            current=get_task(cn,task_id)
+            run=get_run(cn,task_id,run_id)
+            snapshot=json.loads(run['criteria_json'])
+            prior=task_audit_snapshot(current)
+            derived=set(snapshot.get('description_leads',[])+snapshot.get('supplementary_leads',[]))
+            manual_preferred=snapshot.get('task_preferred',
+                                           [term for term in snapshot.get('preferred',[])
+                                            if term not in derived])
+            updates={
+                'required':snapshot.get('required',[]),
+                'preferred':manual_preferred,
+                'excluded':snapshot.get('excluded',[]),
+                'match_mode':snapshot.get('match_mode','aliases'),
+                'description_leads':snapshot.get('description_leads',[]),
+            }
+            cn.execute("""UPDATE tasks SET required=?,preferred=?,excluded=?,match_mode=?,
+                description_leads=? WHERE id=?""",
+                (dumps(updates['required']),dumps(updates['preferred']),
+                 dumps(updates['excluded']),updates['match_mode'],
+                 dumps(updates['description_leads']),task_id))
+            restored=get_task(cn,task_id)
+            if task_audit_snapshot(restored)!=prior:
+                cn.execute("""INSERT INTO task_events(task_id,action,previous_json,next_json)
+                    VALUES(?,?,?,?)""",(task_id,f'restore_round:{run_id}',
+                                        dumps(prior),dumps(task_audit_snapshot(restored))))
+            return {'task':restored,'restored_from':run_id,
+                    'note':'岗位条件已恢复；既有筛选轮次和结果不受影响。'}
+
     @app.get('/api/tasks/{task_id}/runs/compare')
     def compare_runs(task_id:int, left:int, right:int):
         """Compare immutable evaluation snapshots, not mutable HR review labels."""
@@ -583,6 +640,7 @@ def create_app(data_dir:Path|None=None):
             matcher=semantic.get_matcher()
             criteria={'required':required,'preferred':preferred,'excluded':excluded,'match_mode':match_mode,'query':payload.query,
                       'description_leads':description_leads, 'supplementary_leads':additional,
+                      'task_preferred':task['preferred'],
                       'engine':'hybrid_retrieval_v0.2' if matcher else 'local_evidence_v1',
                       'semantic':semantic.status(), 'source_filter':payload.source_filter,
                       'retrieval':'bm25_lexical_v1'}
