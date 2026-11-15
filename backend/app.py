@@ -42,6 +42,7 @@ class TaskCreate(BaseModel):
     preferred: list[str]=Field(default_factory=list)
     excluded: list[str]=Field(default_factory=list)
     match_mode: Literal['aliases','exact']='aliases'
+    description_leads: list[str]|None=Field(default=None,max_length=8)
 
 class TaskPatch(BaseModel):
     title: str|None=None
@@ -50,6 +51,7 @@ class TaskPatch(BaseModel):
     preferred: list[str]|None=None
     excluded: list[str]|None=None
     match_mode: Literal['aliases','exact']|None=None
+    description_leads: list[str]|None=Field(default=None,max_length=8)
     archived: bool|None=None
 
 class TaskDelete(BaseModel):
@@ -91,6 +93,7 @@ def get_task(cn,task_id):
     d['required']=json.loads(d['required'])
     d['preferred']=json.loads(d['preferred'])
     d['excluded']=json.loads(d['excluded'])
+    d['description_leads']=json.loads(d['description_leads']) if d['description_leads'] is not None else None
     d['archived']=bool(d['archived'])
     return d
 
@@ -206,7 +209,7 @@ def create_app(data_dir:Path|None=None):
 
     @app.post('/api/criteria/suggest')
     def criteria_suggest(payload:DescriptionInput):
-        return suggest_conditions(payload.description)
+        return {**suggest_conditions(payload.description), 'description_leads':description_clues(payload.description)}
 
     @app.get('/api/tasks')
     def tasks():
@@ -222,8 +225,9 @@ def create_app(data_dir:Path|None=None):
     @app.post('/api/tasks')
     def new_task(payload:TaskCreate):
         with store.connect() as cn:
-            c=cn.execute('INSERT INTO tasks(title,description,required,preferred,excluded,match_mode) VALUES(?,?,?,?,?,?)',
-                (payload.title.strip(),payload.description,dumps(split_terms(payload.required)),dumps(split_terms(payload.preferred)),dumps(split_terms(payload.excluded)),payload.match_mode))
+            c=cn.execute('INSERT INTO tasks(title,description,required,preferred,excluded,match_mode,description_leads) VALUES(?,?,?,?,?,?,?)',
+                (payload.title.strip(),payload.description,dumps(split_terms(payload.required)),dumps(split_terms(payload.preferred)),dumps(split_terms(payload.excluded)),payload.match_mode,
+                 dumps(split_terms(payload.description_leads)) if payload.description_leads is not None else None))
             return get_task(cn,c.lastrowid)
 
     @app.get('/api/tasks/{task_id}')
@@ -242,7 +246,7 @@ def create_app(data_dir:Path|None=None):
             edits=payload.model_dump(exclude_unset=True)
             fields=[]; values=[]
             for key,val in edits.items():
-                if key in ('required','preferred','excluded'):
+                if key in ('required','preferred','excluded') or (key=='description_leads' and val is not None):
                     val=dumps(split_terms(val))
                 if key=='archived':
                     val=int(val)
@@ -509,7 +513,8 @@ def create_app(data_dir:Path|None=None):
             # never require an exact match on the entire arbitrary paragraph.
             # Added query terms are soft evidence signals, never new hard criteria automatically.
             required=task['required']
-            description_leads=description_clues(task['description'])
+            description_leads=(task['description_leads'] if task['description_leads'] is not None
+                               else description_clues(task['description']))
             preferred=list(dict.fromkeys(task['preferred']+description_leads+additional))
             excluded=task['excluded']
             match_mode=task['match_mode']
