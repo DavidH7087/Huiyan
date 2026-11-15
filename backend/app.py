@@ -13,7 +13,7 @@ import tempfile
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
 from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -419,6 +419,22 @@ def create_app(data_dir:Path|None=None):
             return [dict(row) for row in cn.execute(
                 'SELECT id,filename,state,message,created_at FROM imports WHERE task_id=? ORDER BY id DESC LIMIT 300',
                 (task_id,))]
+
+    @app.get('/api/tasks/{task_id}/retention')
+    def retention_review(task_id:int, days:int=Query(365,ge=30,le=3650)):
+        """Preview old personal data; never expire or delete candidates automatically."""
+        with store.connect() as cn:
+            get_task(cn,task_id)
+            cutoff=f'-{days} days'
+            total=cn.execute("""SELECT COUNT(*) FROM resumes
+                WHERE task_id=? AND imported_at < datetime('now',?)""",
+                (task_id,cutoff)).fetchone()[0]
+            records=[dict(row) for row in cn.execute("""SELECT id,filename,name,imported_at
+                FROM resumes WHERE task_id=? AND imported_at < datetime('now',?)
+                ORDER BY imported_at ASC,id ASC LIMIT 100""",(task_id,cutoff))]
+            return {'task_id':task_id,'days':days,'due_count':total,'shown':len(records),
+                    'candidates':records,'manual_review_required':True,
+                    'note':'仅供组织依据合法保留期限审核，系统不会自动删除；外部加密备份需另行管理。'}
 
     @app.get('/api/tasks/{task_id}/resumes')
     def list_resumes(task_id:int):
