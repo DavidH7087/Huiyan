@@ -5,7 +5,7 @@ NOT a validated employment decision model: every result requires HR review.
 from __future__ import annotations
 
 import re
-from .evidence_context import PRACTICE, TRAINING, rejection_reason
+from .evidence_context import TRAINING, rejection_reason
 
 # The vocabulary improves recall for a small starter set of Chinese job descriptions.
 # It is not a complete occupational ontology or a semantic language model.
@@ -108,8 +108,11 @@ def find_evidence(term: str, pages: list[dict], match_mode: str = 'aliases') -> 
             # Context across comma-separated keyword lists matters: '课程中提到
             # 库存管理、ERP' is training, not work experience. Conversely, a '没有'
             # in the next clause cannot negate an unrelated preceding skill.
+            strong_practice = ('独立负责', '独立承担', '工作中使用', '实际使用',
+                               '实战', '开发过', '项目中使用', '项目经验',
+                               '上线', '交付', '负责', '搭建', '实现', '实施')
             training_only = (any(word in sentence for word in TRAINING)
-                             and not any(word in sentence for word in PRACTICE))
+                             and not any(word in sentence for word in strong_practice))
             if training_only:
                 continue
             clauses = re.split(r"[，,]+", sentence)
