@@ -26,9 +26,10 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
         port = free.getsockname()[1]
     env = os.environ.copy()
     env.update({
-        'HUIYAN_DATA_DIR': str(tmp_path / 'ui-data'),
+        'HUIYAN_DATA_DIR': str(tmp_path / 'data'),
         'HUIYAN_OCR_ENABLED': '0',
         'HUIYAN_DESKTOP_MODE': '1',
+        'HUIYAN_SESSION_TOKEN': 'synthetic-e2e-launch-session-token',
     })
     server = subprocess.Popen(
         [sys.executable, '-m', 'uvicorn', 'backend.app:app', '--host', '127.0.0.1',
@@ -52,13 +53,16 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
             browser = p.chromium.launch(headless=True)
             page = browser.new_page(viewport={'width': 1360, 'height': 860}, device_scale_factor=1, accept_downloads=True)
             try:
-                page.goto(f'http://127.0.0.1:{port}/', wait_until='networkidle')
+                page.goto(f'http://127.0.0.1:{port}/?session=synthetic-e2e-launch-session-token', wait_until='networkidle')
+                assert 'session=' not in page.url
                 page.get_by_role('heading', name='开始简历筛选').wait_for()
                 page.locator('#newDescription').fill('招聘有企业客户开发经验的 B2B 销售，最好有制造业客户经验。')
                 page.locator('#describeNext').click()
                 page.locator('#jobTitle').fill('销售经理招聘')
                 page.locator('#mustTerms').fill('客户开发')
                 page.locator('#bonusTerms').fill('制造业')
+                page.locator('#excludedTerms').fill('兼职')
+                page.locator('#keywordMode').select_option('exact')
                 page.locator('#createTask').click()
                 page.locator('#fileInput').set_input_files({
                     'name': 'candidate.txt', 'mimeType': 'text/plain',
@@ -91,6 +95,14 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
                 target = tmp_path / 'ui-export.hyb'
                 download.save_as(target)
                 assert target.read_bytes().startswith(b'HUIYANBK2\x00')
+                page.locator('#restoreFile').set_input_files(target)
+                page.locator('#restorePassword').fill('a-long-synthetic-test-password')
+                page.locator('#restoreConfirm').fill('恢复')
+                page.locator('#restoreBackup').click()
+                page.get_by_text('已验证 1 份原始简历',exact=False).wait_for(timeout=45000)
+                assert (tmp_path / 'data' / 'huiyan.sqlite3').exists()
+                assert len(list(tmp_path.glob('restored-*'))) == 1
+                page.screenshot(path=str(output / 'huiyan-recovery.png'),full_page=True)
             finally:
                 browser.close()
     finally:
