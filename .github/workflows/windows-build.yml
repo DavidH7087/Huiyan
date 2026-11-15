@@ -115,15 +115,45 @@ jobs:
           $env:HUIYAN_DATA_DIR = Join-Path $env:RUNNER_TEMP 'huiyan-installed-smoke'
           $app = Start-Process -FilePath $installedExe -Wait -PassThru
           if ($app.ExitCode -ne 0) { throw "Installed EXE smoke failed with $($app.ExitCode)" }
+      - name: Generate installer checksums and build provenance
+        shell: pwsh
+        run: |
+          $files = @('Huiyan-windows-x64.zip')
+          $files += @(Get-ChildItem 'dist/installer' -Filter 'Huiyan-Setup-*.exe' | ForEach-Object { $_.FullName })
+          if ($files.Count -lt 2) { throw 'Build provenance expects installer and portable ZIP' }
+          $checksums = foreach ($file in $files) {
+            $sum = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($sum.Length -ne 64) { throw "Invalid SHA256 for $file" }
+            "$sum  $(Split-Path $file -Leaf)"
+          }
+          $checksums | Set-Content -Path 'Huiyan-SHA256SUMS.txt' -Encoding utf8
+          $meta = @{
+            product = 'Huiyan'; channel = 'unsigned-internal-preview'
+            repository = $env:GITHUB_REPOSITORY
+            commit = $env:GITHUB_SHA; run_id = $env:GITHUB_RUN_ID
+            platform = 'windows-x64'; generated_utc = [DateTime]::UtcNow.ToString('o')
+          }
+          $meta | ConvertTo-Json -Depth 4 | Set-Content -Path 'Huiyan-build.json' -Encoding utf8
+          python -m pip list --format=json | Out-File -FilePath 'Huiyan-dependencies.json' -Encoding utf8
+          if (-not (Test-Path 'Huiyan-SHA256SUMS.txt')) { throw 'Checksum file missing' }
+      - name: Upload build verification data
+        uses: actions/upload-artifact@v4
+        with:
+          name: Huiyan-build-verification
+          path: |
+            Huiyan-SHA256SUMS.txt
+            Huiyan-build.json
+            Huiyan-dependencies.json
+          retention-days: 30
       - name: Upload installer preview (unsigned test artifact)
         uses: actions/upload-artifact@v4
         with:
           name: Huiyan-windows-installer-preview
           path: dist/installer/Huiyan-Setup-*.exe
-          retention-days: 14
+          retention-days: 30
       - name: Upload portable build (test artifact, not a release)
         uses: actions/upload-artifact@v4
         with:
           name: Huiyan-windows-x64-test-build
           path: Huiyan-windows-x64.zip
-          retention-days: 14
+          retention-days: 30

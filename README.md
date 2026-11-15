@@ -131,6 +131,10 @@ Windows 桌面版「招聘档案」页可创建 AES-256-GCM 加密备份 `.hyb`�
 - **诊断提示**：无法读出文字时显示 OCR 状态和实际原因，不默默当作空白简历。
 - OCR 的提取内容均需要人工核实，不能直接判定岗位资格。详见 [OCR 使用说明](docs/OCR_SETUP.md) 及 [阶段报告](docs/PHASE4D_REPORT.md)。
 
+## Phase 7A：构建可追溯性
+
+Windows 安装包及便携 ZIP 每次构建都会附带 SHA-256 校验值、提交号及依赖版本清单，作为独立 GitHub Actions Artifact 保留 30 天。它是**文件完整性校验**，不是代码签名。详见 [`docs/PHASE7A_REPORT.md`](docs/PHASE7A_REPORT.md)。
+
 ## Phase 6F：轻量中文 BM25 文本相关性排序
 
 新增离线词法 BM25 辅助排序：在不改变任何必要条件判断及人工复核状态的前提下，改善候选人之间的同组顺序。该数值仅表示本轮文档与招聘文字的相关程度，**不是能力分或录用概率**；无法代替真正的语义模型。详见 [`docs/PHASE6F_REPORT.md`](docs/PHASE6F_REPORT.md)。

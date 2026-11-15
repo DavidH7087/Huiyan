@@ -7,6 +7,7 @@
 - Python API、筛选结果、历史审核、导入、OCR 测试和前端脚本语法；包括 120 份模板合成数据回归、备份密码错误与篡改拒绝测试。
 - Windows 环境打包为 EXE 并启动本机 HTTP 服务。
 - Inno Setup 安装器的静默安装和安装后 EXE 冒烟测试（以 CI 实际结果为准），已捆绑简体中文/英文 OCR。
+- Windows 产物 SHA256 校验值、GitHub 提交号、构建环境及 Python 依赖清单；**这不是代码签名**。
 
 - 桌面 Host/Origin 校验及仅本地可访问的 AES-256-GCM 加密备份；恢复功能当前是需要技术人员操作的离线工具。
 - Chromium 在本地桌面模式下模拟招聘主流程及备份文件下载（不等于 Windows WebView2 人工验收）。
