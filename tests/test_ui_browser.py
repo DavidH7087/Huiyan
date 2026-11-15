@@ -64,10 +64,12 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
                 page.locator('#excludedTerms').fill('兼职')
                 page.locator('#keywordMode').select_option('exact')
                 page.locator('#createTask').click()
-                page.locator('#fileInput').set_input_files({
-                    'name': 'candidate.txt', 'mimeType': 'text/plain',
-                    'buffer': '张三\n独立开发制造业客户，有企业客户开发经验。'.encode('utf-8'),
-                })
+                page.locator('#fileInput').set_input_files([
+                    {'name': 'candidate.txt', 'mimeType': 'text/plain',
+                     'buffer': '张三\n独立开发制造业客户，有企业客户开发经验。'.encode('utf-8')},
+                    str(ROOT / 'testdata' / 'synthetic' / 'fixtures' / 'SYN001_b2b_sales.docx'),
+                    str(ROOT / 'testdata' / 'synthetic' / 'fixtures' / 'SYN001_b2b_sales.pdf'),
+                ])
                 page.locator('#uploadFiles').click()
                 page.locator('#startScreening').wait_for(state='visible')
                 page.wait_for_function('!document.querySelector("#startScreening").disabled')
