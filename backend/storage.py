@@ -42,6 +42,15 @@ CREATE TABLE IF NOT EXISTS reviews (
  note TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT (datetime('now')),
  UNIQUE(task_id,resume_id)
 );
+CREATE TABLE IF NOT EXISTS task_events (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+ action TEXT NOT NULL,
+ previous_json TEXT NOT NULL DEFAULT '{}',
+ next_json TEXT NOT NULL DEFAULT '{}',
+ occurred_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id,id);
 CREATE TABLE IF NOT EXISTS review_events (
  id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, resume_id INTEGER NOT NULL,
  status TEXT NOT NULL, note TEXT NOT NULL, occurred_at TEXT NOT NULL DEFAULT (datetime('now'))
