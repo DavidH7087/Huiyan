@@ -67,8 +67,11 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
                 page.locator('#fileInput').set_input_files([
                     {'name': 'candidate.txt', 'mimeType': 'text/plain',
                      'buffer': '张三\n独立开发制造业客户，有企业客户开发经验。'.encode('utf-8')},
-                    str(ROOT / 'testdata' / 'synthetic' / 'fixtures' / 'SYN001_b2b_sales.docx'),
-                    str(ROOT / 'testdata' / 'synthetic' / 'fixtures' / 'SYN001_b2b_sales.pdf'),
+                    {'name': 'SYN001_b2b_sales.docx',
+                     'mimeType': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                     'buffer': (ROOT / 'testdata/synthetic/fixtures/SYN001_b2b_sales.docx').read_bytes()},
+                    {'name': 'SYN001_b2b_sales.pdf', 'mimeType': 'application/pdf',
+                     'buffer': (ROOT / 'testdata/synthetic/fixtures/SYN001_b2b_sales.pdf').read_bytes()},
                 ])
                 page.locator('#uploadFiles').click()
                 page.locator('#startScreening').wait_for(state='visible')
