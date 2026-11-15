@@ -25,7 +25,7 @@ from .session_security import DesktopSessionGuard
 from .backup import BackupError, MAX_CONTENT, create_encrypted_backup
 from .restore_profiles import stage_restore, profile_status, schedule_original_profile
 from .duplicates import annotate_possible_duplicates, collect_duplicate_groups
-from .engine import split_terms, suggest_conditions, evaluate
+from .engine import split_terms, suggest_conditions, description_clues, evaluate
 from .retrieval import bm25_relevance
 from .semantic import LocalSemanticService
 from .ocr import LocalOcrService
@@ -504,18 +504,18 @@ def create_app(data_dir:Path|None=None):
                     ids.append(record['resume_id'])
             terms=task['required']+task['preferred']+task['excluded']
             new=suggest_conditions(payload.query)
-            additional=[x for x in new['required']+new['preferred'] if x not in terms]
-            # A free-form follow-up must be searchable even without a term in our
-            # small vocabulary. It remains a *soft* criterion awaiting HR review.
-            if payload.query.strip() and not additional:
-                additional=[payload.query.strip()[:180]]
+            additional=[x for x in new['required']+new['preferred']+description_clues(payload.query) if x not in terms]
+            # Free-text descriptions are interpreted as bounded, optional evidence leads;
+            # never require an exact match on the entire arbitrary paragraph.
             # Added query terms are soft evidence signals, never new hard criteria automatically.
             required=task['required']
-            preferred=list(dict.fromkeys(task['preferred']+additional))
+            description_leads=description_clues(task['description'])
+            preferred=list(dict.fromkeys(task['preferred']+description_leads+additional))
             excluded=task['excluded']
             match_mode=task['match_mode']
             matcher=semantic.get_matcher()
             criteria={'required':required,'preferred':preferred,'excluded':excluded,'match_mode':match_mode,'query':payload.query,
+                      'description_leads':description_leads, 'supplementary_leads':additional,
                       'engine':'hybrid_retrieval_v0.2' if matcher else 'local_evidence_v1',
                       'semantic':semantic.status(), 'source_filter':payload.source_filter,
                       'retrieval':'bm25_lexical_v1'}
