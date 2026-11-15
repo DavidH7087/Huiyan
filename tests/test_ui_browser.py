@@ -104,6 +104,7 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
                 page.get_by_text('已按历史条件建立新轮次').wait_for()
                 # Phase 3: exercise the *drop* path rather than file selection only.
                 page.locator('#uploadMore').click()
+                page.locator('#resumeDropzone').wait_for(state='visible')
                 page.evaluate("""() => {
                     const data = new DataTransfer();
                     data.items.add(new File(
