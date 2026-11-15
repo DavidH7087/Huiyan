@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from openpyxl import Workbook
 from .storage import Store
+from .diagnostics import inspect_local_data
 from .local_security import DesktopRequestGuard
 from .session_security import DesktopSessionGuard
 from .backup import BackupError, MAX_CONTENT, create_encrypted_backup
@@ -135,6 +136,12 @@ def create_app(data_dir:Path|None=None):
                 'semantic':semantic.status(),'ocr':ocr.status(),
                 'backup_available':os.environ.get('HUIYAN_DESKTOP_MODE') == '1',
                 'restore_available':os.environ.get('HUIYAN_DESKTOP_MODE') == '1'}
+
+    @app.get('/api/system/diagnostics')
+    def local_diagnostics():
+        if os.environ.get('HUIYAN_DESKTOP_MODE') != '1':
+            raise HTTPException(403,'数据完整性检查只在本地桌面模式中可用')
+        return inspect_local_data(store.root)
 
     @app.post('/api/system/backup')
     def export_backup(payload: BackupPassword):
