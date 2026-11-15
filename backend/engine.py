@@ -5,7 +5,7 @@ NOT a validated employment decision model: every result requires HR review.
 from __future__ import annotations
 
 import re
-from .evidence_context import rejection_reason
+from .evidence_context import PRACTICE, TRAINING, rejection_reason
 
 # The vocabulary improves recall for a small starter set of Chinese job descriptions.
 # It is not a complete occupational ontology or a semantic language model.
@@ -97,24 +97,37 @@ def _contains_alias(text: str, alias: str) -> bool:
 
 
 def find_evidence(term: str, pages: list[dict], match_mode: str = 'aliases') -> dict | None:
-    # Exact mode disables synonym expansion; it still normalises whitespace/case.
+    # Exact disables synonym expansion but still normalises case/whitespace.
     aliases = sorted(([term] if match_mode == 'exact' else alias_options(term)), key=len, reverse=True)
     for page in pages:
         original = page.get("text", "")
-        sentences = re.split(r"[。！？!?\n；;，,]+", original)
+        sentences = re.split(r"[。！？!?\n；;]+", original)
         for sentence in sentences:
             if not sentence.strip():
                 continue
-            for alias in aliases:
-                if (not _contains_alias(sentence, alias) or _looks_negated(sentence, alias)
-                        or rejection_reason(sentence, alias)):
+            # Context across comma-separated keyword lists matters: '课程中提到
+            # 库存管理、ERP' is training, not work experience. Conversely, a '没有'
+            # in the next clause cannot negate an unrelated preceding skill.
+            training_only = (any(word in sentence for word in TRAINING)
+                             and not any(word in sentence for word in PRACTICE))
+            if training_only:
+                continue
+            clauses = re.split(r"[，,]+", sentence)
+            for clause in clauses:
+                if not clause.strip():
                     continue
-                idx = sentence.lower().find(alias.lower())
-                excerpt=(sentence[max(0,idx-70):idx+len(alias)+140] if idx>=0 else sentence[:220])
-                excerpt=re.sub(r"\s+", " ", excerpt).strip()
-                return {"term": term, "matched_text": alias, "page": page.get("page", 1), "excerpt": excerpt, "source": page.get("source", "text")}
+                for alias in aliases:
+                    if (not _contains_alias(clause, alias)
+                            or _looks_negated(clause, alias)
+                            or rejection_reason(clause, alias)):
+                        continue
+                    idx = clause.lower().find(alias.lower())
+                    excerpt = (clause[max(0, idx-70):idx+len(alias)+140]
+                               if idx >= 0 else clause[:220])
+                    excerpt = re.sub(r"\s+", " ", excerpt).strip()
+                    return {"term": term, "matched_text": alias, "page": page.get("page", 1),
+                            "excerpt": excerpt, "source": page.get("source", "text")}
     return None
-
 
 def evaluate(required: list[str], preferred: list[str], pages: list[dict], semantic_matcher=None,
              excluded: list[str] | None = None, match_mode: str = 'aliases') -> dict:
