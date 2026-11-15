@@ -26,6 +26,7 @@ from .backup import BackupError, MAX_CONTENT, create_encrypted_backup
 from .restore_profiles import stage_restore, profile_status, schedule_original_profile
 from .duplicates import annotate_possible_duplicates, collect_duplicate_groups
 from .engine import split_terms, suggest_conditions, evaluate
+from .retrieval import bm25_relevance
 from .semantic import LocalSemanticService
 from .ocr import LocalOcrService
 from .profile import PROFILE_VERSION, extract_profile
@@ -471,7 +472,8 @@ def create_app(data_dir:Path|None=None):
             matcher=semantic.get_matcher()
             criteria={'required':required,'preferred':preferred,'excluded':excluded,'match_mode':match_mode,'query':payload.query,
                       'engine':'hybrid_retrieval_v0.2' if matcher else 'local_evidence_v1',
-                      'semantic':semantic.status(), 'source_filter':payload.source_filter}
+                      'semantic':semantic.status(), 'source_filter':payload.source_filter,
+                      'retrieval':'bm25_lexical_v1'}
             cur=cn.execute('INSERT INTO runs(task_id,parent_id,name,query,scope,criteria_json) VALUES(?,?,?,?,?,?)',
                  (task_id,payload.parent_id,payload.name,payload.query,payload.scope,dumps(criteria)))
             run_id=cur.lastrowid
@@ -486,8 +488,15 @@ def create_app(data_dir:Path|None=None):
                      JOIN evaluations e ON e.resume_id=r.id
                      WHERE r.task_id=? AND e.run_id=?""",(task_id,payload.parent_id))
                         if r['id'] in valid_ids]
-            for resume in source:
-                score=evaluate(required,preferred,json.loads(resume['pages_json']),semantic_matcher=matcher,excluded=excluded,match_mode=match_mode)
+            # BM25 is a bounded lexical tie-breaker, never a qualification decision.
+            parsed=[json.loads(resume['pages_json']) for resume in source]
+            corpus=['\n'.join(page.get('text', '') for page in pages)[:12000] for pages in parsed]
+            query_text=' '.join([task['description'], *required, *preferred, payload.query])
+            relevance=bm25_relevance(query_text, corpus)
+            for resume,pages,relevance_score in zip(source,parsed,relevance):
+                score=evaluate(required,preferred,pages,semantic_matcher=matcher,excluded=excluded,match_mode=match_mode)
+                score['text_relevance']=relevance_score
+                score['sort_key']=round(score['sort_key'] + relevance_score*0.3,5)
                 cn.execute('INSERT INTO evaluations(run_id,resume_id,results_json) VALUES(?,?,?)',(run_id,resume['id'],dumps(score)))
             return {'id':run_id,'name':payload.name,'candidate_count':len(source),'criteria':criteria}
 
