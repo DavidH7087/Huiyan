@@ -119,7 +119,7 @@ view.addEventListener('click',ev=>withBusy(async()=>{
     state.task.resume_count=0;state.uploadSummary=null;await fetchTasks();setPage('import');toast('招聘任务已创建');return;
   }
   if(target.id==='editCriteria'){
-    const task=state.task;state.editing=true;state.title=task.title;state.description=task.description;state.descriptionLeads=task.description_leads??[];state.required=[...task.required];state.preferred=[...task.preferred];state.excluded=[...task.excluded];state.matchMode=task.match_mode;setPage('confirm');return;
+    const task=state.task;state.editing=true;state.title=task.title;state.description=task.description;state.descriptionLeads=task.description_leads!==null?task.description_leads:(await post('/api/criteria/suggest',{description:task.description})).description_leads||[];state.required=[...task.required];state.preferred=[...task.preferred];state.excluded=[...task.excluded];state.matchMode=task.match_mode;setPage('confirm');return;
   }
   if(target.id==='uploadMore'){state.uploadSummary=null;state.task=await api(`/api/tasks/${state.task.id}`);setPage('import');return;}
   if(target.id==='uploadFiles'){
