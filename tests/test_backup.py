@@ -59,3 +59,35 @@ def test_weak_password_rejected_without_output(tmp_path):
     with pytest.raises(BackupError, match='12'):
         create_encrypted_backup(root, 'short', dest)
     assert not dest.exists()
+
+
+def test_backup_uses_same_database_snapshot_as_manifest(tmp_path, monkeypatch):
+    """A new import during snapshotting must not leave a mismatched file list."""
+    import backend.backup as backup_module
+    root = tmp_path / 'live'
+    create_data(root)
+    original = backup_module._snapshot_sqlite
+    second = 'b' * 32 + '.txt'
+
+    def concurrent_import_then_snapshot(database, target):
+        (root / 'uploads' / second).write_text('完全虚构：第二份候选人简历', encoding='utf-8')
+        with sqlite3.connect(database) as connection:
+            connection.execute('INSERT INTO resumes VALUES (?)', (second,))
+        original(database, target)
+
+    monkeypatch.setattr(backup_module, '_snapshot_sqlite', concurrent_import_then_snapshot)
+    archive = tmp_path / 'consistent.hyb'
+    result = create_encrypted_backup(root, 'long-secret-test-password-2026', archive)
+    assert result['documents'] == 2
+    restored = tmp_path / 'restored'
+    assert restore_to_new_directory(archive, 'long-secret-test-password-2026', restored)['restored_files'] == 2
+
+
+def test_missing_source_document_never_produces_backup(tmp_path):
+    root = tmp_path / 'original'
+    create_data(root)
+    next((root / 'uploads').iterdir()).unlink()
+    dest = tmp_path / 'incomplete.hyb'
+    with pytest.raises(BackupError, match='原始简历文件缺失'):
+        create_encrypted_backup(root, 'long-secret-test-password-2026', dest)
+    assert not dest.exists()
