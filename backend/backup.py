@@ -81,30 +81,36 @@ def _zip_file(zf, source: Path, arcname: str):
 
 
 def create_encrypted_backup(root: Path, password: str, destination: Path) -> dict:
-    """Write a complete encrypted backup. Caller owns destination cleanup."""
+    """Snapshot SQLite first, then derive the file manifest from that exact snapshot.
+
+    A live import can add records while a backup runs. Reading filenames from the
+    live database before taking the snapshot could produce an unrestorable backup.
+    """
     root = Path(root)
     database = root / 'huiyan.sqlite3'
     if not database.is_file():
         raise BackupError('找不到慧眼本地数据库')
-    files = []
-    with closing(sqlite3.connect(database)) as conn:
-        for (filename,) in conn.execute('SELECT stored_file FROM resumes ORDER BY stored_file'):
-            if not _FILENAME.fullmatch(filename):
-                raise BackupError('数据库中的原文件名称不符合安全格式')
-            path = root / 'uploads' / filename
-            if not path.is_file() or path.is_symlink():
-                raise BackupError('发现原始简历文件缺失，备份已停止')
-            files.append((path, 'uploads/' + filename))
-    if len(files) > MAX_FILES:
-        raise BackupError('文件数量超出本版备份上限')
-    if sum(p.stat().st_size for p, _ in files) + database.stat().st_size > MAX_CONTENT:
-        raise BackupError('数据量超过本版 1GB 备份上限')
-    # SQLite's online backup API provides a consistent database snapshot. It
-    # creates a short-lived plaintext temporary DB; operators should use full-
-    # disk encryption where personal data is processed.
+    # Validate early: an invalid password must not create an archive or snapshot.
+    if not 12 <= len(password) <= 256:
+        raise BackupError('备份密码需要 12 至 256 个字符')
     with tempfile.TemporaryDirectory(prefix='huiyan-snapshot-') as workdir:
         snapshot = Path(workdir) / 'huiyan.sqlite3'
         _snapshot_sqlite(database, snapshot)
+        files = []
+        with closing(sqlite3.connect(snapshot)) as conn:
+            for (filename,) in conn.execute('SELECT stored_file FROM resumes ORDER BY stored_file'):
+                if not _FILENAME.fullmatch(filename):
+                    raise BackupError('数据库中的原文件名称不符合安全格式')
+                path = root / 'uploads' / filename
+                if not path.is_file() or path.is_symlink():
+                    raise BackupError('发现原始简历文件缺失，备份已停止')
+                files.append((path, 'uploads/' + filename))
+        if len(files) > MAX_FILES:
+            raise BackupError('文件数量超出本版备份上限')
+        if sum(p.stat().st_size for p, _ in files) + snapshot.stat().st_size > MAX_CONTENT:
+            raise BackupError('数据量超过本版 1GB 备份上限')
+        # SQLite's backup API creates a brief plaintext temporary database.
+        # Use full-disk encryption on any system processing actual personal data.
         salt = os.urandom(16)
         nonce = os.urandom(12)
         key = _key(password, salt)
@@ -122,6 +128,9 @@ def create_encrypted_backup(root: Path, password: str, destination: Path) -> dic
                     zf.writestr('manifest.json', json.dumps(manifest, sort_keys=True))
                 out.write(enc.finalize())
                 out.write(enc.tag)
+        except (OSError, FileNotFoundError) as exc:
+            destination.unlink(missing_ok=True)
+            raise BackupError('备份期间原始文件发生变化，请重新尝试') from exc
         except BaseException:
             destination.unlink(missing_ok=True)
             raise
