@@ -102,6 +102,13 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
                 page.once('dialog',lambda dialog:dialog.accept())
                 page.locator('[data-replay]').nth(1).click()
                 page.get_by_text('已按历史条件建立新轮次').wait_for()
+                page.once('dialog', lambda dialog:dialog.accept())
+                page.locator('[data-restore-criteria]').last.click()
+                page.get_by_text('岗位条件已恢复',exact=False).wait_for()
+                page.locator('#editCriteria').click()
+                assert '客户开发' in page.locator('#mustTerms').input_value()
+                page.locator('#createTask').click()
+                page.locator('#uploadMore').wait_for(state='visible')
                 # Phase 3: exercise the *drop* path rather than file selection only.
                 page.locator('#uploadMore').click()
                 page.locator('#resumeDropzone').wait_for(state='visible')
