@@ -101,7 +101,7 @@ def find_evidence(term: str, pages: list[dict], match_mode: str = 'aliases') -> 
     aliases = sorted(([term] if match_mode == 'exact' else alias_options(term)), key=len, reverse=True)
     for page in pages:
         original = page.get("text", "")
-        sentences = re.split(r"[。！？!?\n；;]+", original)
+        sentences = re.split(r"[。！？!?\n；;，,]+", original)
         for sentence in sentences:
             if not sentence.strip():
                 continue
