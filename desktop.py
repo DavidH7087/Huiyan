@@ -136,9 +136,9 @@ if __name__ == '__main__':
                 ctypes.windll.user32.MessageBoxW(
                     None,
                     '慧眼暂时无法启动。请关闭程序后重试。'
-                    '\\n\\n如果问题持续出现，请先备份本机慧眼数据目录，'
+                    '\n\n如果问题持续出现，请先备份本机慧眼数据目录，'
                     '不要卸载后手动清理候选人资料。'
-                    '\\n\\n错误类别：' + error_type,
+                    '\n\n错误类别：' + error_type,
                     '慧眼 · 启动失败', 0x10
                 )
             except Exception:
