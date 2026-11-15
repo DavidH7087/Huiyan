@@ -3,7 +3,7 @@ const nav = [...document.querySelectorAll('[data-view]')];
 const state = {
   page:'home', tasks:[], task:null, runs:[], run:null, result:null, selected:null,
   description:'', descriptionLeads:[], required:[], preferred:[], excluded:[], matchMode:'aliases', title:'', editing:false, filter:'全部', busy:false, preview:null,
-  currentText:null, uploadSummary:null, historyCompare:null, reviewEvents:[], search:'', health:null, profileStatus:null, recoveryNotice:'',
+  currentText:null, uploadSummary:null, importRecords:[], stagedFiles:[], retryFiles:[], historyCompare:null, reviewEvents:[], search:'', health:null, profileStatus:null, recoveryNotice:'',
 };
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const e=escapeHtml;
@@ -39,12 +39,12 @@ function confirm(){return `<div class="page-title"><h1>${state.editing?'编辑�
 <div class="notice">自动提取只是建议。描述中的补充线索只辅助检索，不会自动成为必须条件；“最好”“不限”等表达请人工核对。</div>
 <div class="actions" style="margin-top:22px"><button class="btn secondary" data-go="home">返回修改</button><button class="btn" id="createTask">${state.editing?'保存条件（历史轮次不变）':'创建任务，添加简历 →'}</button></div></div>`}
 function importPage(){return `<div class="page-title"><h1>添加简历</h1><p>${e(state.task?.title||'')} · 可以一次添加多个文件或整个文件夹。</p></div>
-<div class="surface"><div class="dropzone"><strong>选择简历文件</strong><p>支持 PDF、DOCX、TXT、ZIP；${state.health?.ocr?.state==='ready' ? '扫描 PDF 和图片式 Word 将自动尝试本地 OCR 识别。' : '当前扫描件识别未就绪；文字 PDF 和普通 Word 不受影响。'}</p><input type="file" id="fileInput" multiple accept=".pdf,.docx,.txt,.zip"><p style="margin-top:16px">或者选择整个文件夹</p><input type="file" id="folderInput" multiple webkitdirectory directory></div>
+<div class="surface"><div class="dropzone" id="resumeDropzone"><strong>选择文件，或将简历拖到这里</strong><p>支持 PDF、DOCX、TXT、ZIP；${state.health?.ocr?.state==='ready' ? '扫描 PDF 和图片式 Word 将自动尝试本地 OCR 识别。' : '当前扫描件识别未就绪；文字 PDF 和普通 Word 不受影响。'}</p><input type="file" id="fileInput" multiple accept=".pdf,.docx,.txt,.zip"><p style="margin-top:16px">或者选择整个文件夹</p><input type="file" id="folderInput" multiple webkitdirectory directory><p id="selectedFiles" class="hint">${state.stagedFiles.length?'已选择 '+state.stagedFiles.length+' 个文件':'尚未选择文件'}</p></div>
 ${state.health?.ocr ? `<p class="hint">文字识别：${e(state.health.ocr.message)}${state.health.ocr.state==='ready'?'':'。扫描版简历可能导入失败，请查看 OCR 配置说明。'}</p>` : ''}<p id="importProgress" class="hint" role="status" aria-live="polite"></p><div class="actions" style="margin-top:18px"><button class="btn secondary" data-go="tasks">稍后添加</button><button class="btn" id="uploadFiles">导入所选简历</button></div>
 ${state.uploadSummary?`<div class="notice">成功导入 ${state.uploadSummary.imported} 份，重复 ${state.uploadSummary.duplicates} 份，问题文件 ${state.uploadSummary.issues.length} 份，需核对 ${state.uploadSummary.warnings?.length||0} 份。</div>`:''}
 ${state.uploadSummary?.issues?.length?`<div class="notice warn">${state.uploadSummary.issues.slice(0,6).map(x=>e(x.filename+': '+x.message)).join('<br>')}</div>`:''}
-${state.uploadSummary?.warnings?.length?`<div class="notice warn">${state.uploadSummary.warnings.slice(0,8).map(x=>e(x.filename+': '+x.message)).join('<br>')}</div>`:''}
-<div class="divider"></div><div class="toolbar"><span>此任务已有 <strong>${state.task?.resume_count||0}</strong> 份简历</span><button class="btn" id="startScreening" ${(state.task?.resume_count||0)<1?'disabled':''}>开始筛选 →</button></div>
+${state.uploadSummary?.warnings?.length?`<div class="notice warn">${state.uploadSummary.warnings.slice(0,8).map(x=>e(x.filename+': '+x.message)).join('<br>')}</div>`:''}${state.retryFiles.length?'<button class="btn secondary small" id="retryIssues">重试本次失败的文件</button>':''}
+<details class="audit-log"><summary>查看导入明细（最近 300 条）</summary>${state.importRecords.map(x=>`<p>${e(fmt(x.created_at))} · ${e(x.state)} · ${e(x.filename)}${x.message?' · '+e(x.message):''}</p>`).join('')||'<p>暂无记录</p>'}</details><div class="divider"></div><div class="toolbar"><span>此任务已有 <strong>${state.task?.resume_count||0}</strong> 份简历</span><button class="btn" id="startScreening" ${(state.task?.resume_count||0)<1?'disabled':''}>开始筛选 →</button></div>
 <p class="hint">注：无关键词也可根据岗位描述查找参考线索。可选本地语义模型能提供更多待核实内容；不能据此自动淘汰候选人。</p></div>`}
 function allTasks(archive=false){const records=archive==='all'?state.tasks:state.tasks.filter(t=>archive?t.archived:!t.archived);return `<div class="section-head"><div><h1>${archive?'招聘档案':'筛选任务'}</h1><p class="subtle">${archive?'所有岗位和筛选历史集中管理，支持归档与恢复。':'管理当前招聘、筛选结果和人工审核。'}</p></div><button class="btn" data-go="home">+ 新建任务</button></div><div class="task-list">${records.map(taskCard).join('')||'<div class="empty">这里暂时没有招聘任务。</div>'}</div>${!archive?`<div class="subpanel"><h2 style="margin-bottom:14px">已归档</h2><div class="task-list">${state.tasks.filter(t=>t.archived).map(taskCard).join('')||'<p class="subtle small">没有已归档的任务。</p>'}</div></div>`:''}`}
 function groupCounts(results){return ['优先查看','需要确认'].map(k=>({name:k,count:results.filter(r=>r.evaluation.group===k).length}));}
@@ -105,6 +105,45 @@ async function showTask(taskId,asArchive=false){state.task=await api(`/api/tasks
 async function showRun(runId){state.result=await api(`/api/tasks/${state.task.id}/runs/${runId}/results`);state.run=state.runs.find(r=>r.id===runId)||null;state.selected=state.result.results[0]?.resume_id||null;setPage('results')}
 async function createRun(query='',parent=false,sourceFilter='全部'){const response=await post(`/api/tasks/${state.task.id}/runs`,{name:parent?`补充筛选 · ${query.slice(0,20)||'新条件'}`:'综合筛选',query,scope:parent?'parent':'all',parent_id:parent?state.result?.run?.id:null,source_filter:sourceFilter});state.runs=await api(`/api/tasks/${state.task.id}/runs`);await showRun(response.id);toast(`已保存筛选轮次，包含 ${response.candidate_count} 份简历`)}
 nav.forEach(n=>n.addEventListener('click',()=>{const p=n.dataset.view;state.task=null;state.result=null;if(p==='home'){setPage(p);return}withBusy(async()=>{await fetchTasks();if(p==='archive')await fetchProfiles();setPage(p)})}));
+async function importSelectedFiles(files){
+ if(!files.length){toast('请先选择简历文件或文件夹');return}
+ const summary={imported:0,duplicates:0,issues:[],warnings:[]};
+ let processed=0;
+ for(let i=0;i<files.length;i+=10){
+   const batch=files.slice(i,i+10),form=new FormData();
+   batch.forEach(file=>form.append('files',file,file.name));
+   const res=await api(`/api/tasks/${state.task.id}/resumes`,{method:'POST',body:form});
+   summary.imported+=res.imported;summary.duplicates+=res.duplicates;
+   summary.issues.push(...(res.issues||[]));summary.warnings.push(...(res.warnings||[]));
+   processed+=batch.length;state.uploadSummary=summary;
+   const progress=el('importProgress');
+   if(progress)progress.textContent=`已处理 ${processed}/${files.length} 个文件，成功 ${summary.imported} 份。`;
+ }
+ const issueNames=new Set(summary.issues.map(x=>x.filename));
+ state.retryFiles=files.filter(f=>issueNames.has(f.name));
+ state.stagedFiles=[];state.importRecords=await api(`/api/tasks/${state.task.id}/imports`);
+ state.task=await api(`/api/tasks/${state.task.id}`);render();
+ toast(`导入完成：成功 ${summary.imported} 份，重复 ${summary.duplicates} 份，异常 ${summary.issues.length} 份`);
+}
+view.addEventListener('change',ev=>{
+ if(ev.target.id==='fileInput'||ev.target.id==='folderInput'){
+   state.stagedFiles=[...ev.target.files];state.retryFiles=[];
+   const hint=el('selectedFiles');if(hint)hint.textContent=`已选择 ${state.stagedFiles.length} 个文件`;
+ }
+});
+view.addEventListener('dragover',ev=>{
+ const zone=ev.target.closest?.('#resumeDropzone');if(!zone)return;
+ ev.preventDefault();zone.classList.add('drag-over');
+});
+view.addEventListener('dragleave',ev=>{
+ const zone=ev.target.closest?.('#resumeDropzone');if(zone)zone.classList.remove('drag-over');
+});
+view.addEventListener('drop',ev=>{
+ const zone=ev.target.closest?.('#resumeDropzone');if(!zone)return;
+ ev.preventDefault();zone.classList.remove('drag-over');
+ state.stagedFiles=[...ev.dataTransfer.files];state.retryFiles=[];
+ const hint=el('selectedFiles');if(hint)hint.textContent=`已选择 ${state.stagedFiles.length} 个文件`;
+});
 view.addEventListener('input',ev=>{if(ev.target.id==='candidateSearch'){state.search=ev.target.value;const cursor=ev.target.selectionStart;render();const inp=el('candidateSearch');if(inp){inp.focus();inp.setSelectionRange(cursor,cursor)}}});
 view.addEventListener('click',ev=>withBusy(async()=>{
   const target=ev.target.closest('button,[data-candidate],[data-run]');if(!target)return;
@@ -139,32 +178,15 @@ view.addEventListener('click',ev=>withBusy(async()=>{
     const config={title:state.title,description:state.description,description_leads:state.descriptionLeads,required:state.required,preferred:state.preferred,excluded:state.excluded,match_mode:state.matchMode};
     if(state.editing){state.task=await patch(`/api/tasks/${state.task.id}`,config);state.editing=false;await fetchTasks();if(state.result?.run?.id)await showRun(state.result.run.id);else setPage('import');toast('招聘要求已更新；既有筛选记录仍保持不变');return;}
     state.task=await post('/api/tasks',config);
-    state.task.resume_count=0;state.uploadSummary=null;await fetchTasks();setPage('import');toast('招聘任务已创建');return;
+    state.task.resume_count=0;state.uploadSummary=null;state.importRecords=[];state.stagedFiles=[];state.retryFiles=[];await fetchTasks();setPage('import');toast('招聘任务已创建');return;
   }
   if(target.id==='editCriteria'){
     const task=state.task;state.editing=true;state.title=task.title;state.description=task.description;state.descriptionLeads=task.description_leads!==null?task.description_leads:(await post('/api/criteria/suggest',{description:task.description})).description_leads||[];state.required=[...task.required];state.preferred=[...task.preferred];state.excluded=[...task.excluded];state.matchMode=task.match_mode;setPage('confirm');return;
   }
   if(target.id==='closeCompare'){state.historyCompare=null;render();return;}
-  if(target.id==='uploadMore'){state.uploadSummary=null;state.task=await api(`/api/tasks/${state.task.id}`);setPage('import');return;}
-  if(target.id==='uploadFiles'){
-    const files=[...el('fileInput').files,...el('folderInput').files];
-    if(!files.length){toast('请先选择简历文件或文件夹');return}
-    const summary={imported:0,duplicates:0,issues:[],warnings:[]};
-    let processed=0;
-    for(let i=0;i<files.length;i+=10){
-      const batch=files.slice(i,i+10),form=new FormData();
-      batch.forEach(file=>form.append('files',file,file.name));
-      const res=await api(`/api/tasks/${state.task.id}/resumes`,{method:'POST',body:form});
-      summary.imported+=res.imported;summary.duplicates+=res.duplicates;
-      summary.issues.push(...(res.issues||[]));summary.warnings.push(...(res.warnings||[]));
-      processed+=batch.length;
-      state.uploadSummary=summary;
-      const progress=el('importProgress');
-      if(progress)progress.textContent=`正在导入：已处理 ${processed}/${files.length} 个文件；已成功 ${summary.imported} 份。`;
-    }
-    state.task=await api(`/api/tasks/${state.task.id}`);render();
-    toast(`导入完成：成功 ${summary.imported} 份，重复 ${summary.duplicates} 份，异常 ${summary.issues.length} 份`);return;
-  }
+  if(target.id==='uploadMore'){state.uploadSummary=null;state.stagedFiles=[];state.retryFiles=[];state.task=await api(`/api/tasks/${state.task.id}`);state.importRecords=await api(`/api/tasks/${state.task.id}/imports`);setPage('import');return;}
+  if(target.id==='uploadFiles'){await importSelectedFiles(state.stagedFiles);return;}
+  if(target.id==='retryIssues'){await importSelectedFiles(state.retryFiles);return;}
   if(target.id==='startScreening'||target.id==='firstScreening'){await createRun();return;}
   if(target.id==='screenAgain'){const query=el('followupQuery').value.trim();if(!query){toast('请输入补充筛选条件');return}await createRun(query,true,el('followupScope').value);return;}
   if(target.id==='openHistory'){setPage('archive');return;}
