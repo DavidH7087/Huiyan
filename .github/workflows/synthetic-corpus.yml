@@ -57,6 +57,10 @@ jobs:
           assert json.loads((root/'META.json').read_text())['all_data_fictional'] is True
           print('Synthetic corpus format checks: OK')
           PY
+      - name: Import 240 DOCX/PDF files through real screening API
+        env:
+          HUIYAN_SYNTHETIC_CORPUS: /tmp/huiyan-synthetic-corpus
+        run: python -m pytest -q testdata/synthetic/test_full_ingestion.py
       - name: Package full fixtures
         run: |
           python - <<'PY'
