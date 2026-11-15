@@ -53,8 +53,7 @@ def extract_profile(pages: list[dict]) -> dict:
                 if len(experiences) < 12:
                     experiences.append(quote)
                     seen_experiences.add(quote['excerpt'])
-            # Explicit role experience such as '5年B2B销售经验' is not
-            # necessarily five years of total employment.
+            # An explicit skill-specific tenure is not necessarily total employment.
             spans = set()
             patterns = (
                 (r'(?<!\d)(\d{1,2})\s*年(?:以上|左右|多)?(?:相关)?工作经验', 'total'),
@@ -72,21 +71,7 @@ def extract_profile(pages: list[dict]) -> dict:
                             for start, end in spans):
                         continue
                     prefix = line[max(0, match.start()-12):match.start()]
-                    if re.search(r'(?:没有|未有|不具备|不足|缺少|要求至少|须有)
-    # Different statements may conflict; do not choose a "true" duration.
-    unique_years = sorted({item['years'] for item in years})
-    return {
-        'version': PROFILE_VERSION,
-        'education_mentions': education[:8],
-        'skill_mentions': skills,
-        'experience_mentions': experiences,
-        'stated_experience_years': unique_years,
-        'experience_duration_mentions': years,
-        'experience_years_conflict': len(unique_years) > 1,
-        'needs_source_review': needs_review,
-        'disclaimer': '仅从简历文字提取线索，不代表学历、技能或年限已经核实。',
-    }
-, prefix):
+                    if re.search(r'(?:没有|未有|不具备|不足|缺少|要求至少|须有)$', prefix):
                         continue
                     if scope == 'specific' and not any(x in match.group(0) for x in
                             ('销售','客户','开发','管理','工作','项目','技术','招聘',
@@ -102,6 +87,7 @@ def extract_profile(pages: list[dict]) -> dict:
         'skill_mentions': skills,
         'experience_mentions': experiences,
         'stated_experience_years': unique_years,
+        'experience_duration_mentions': years,
         'experience_years_conflict': len(unique_years) > 1,
         'needs_source_review': needs_review,
         'disclaimer': '仅从简历文字提取线索，不代表学历、技能或年限已经核实。',
