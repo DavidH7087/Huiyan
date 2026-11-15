@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 
-PROFILE_VERSION = 'rules-v1'
+PROFILE_VERSION = 'rules-v2'
 DEGREES = ('博士', '硕士', '研究生', '本科', '学士', '大专', '专科')
 SKILLS = (
     'Python', 'Java', 'JavaScript', 'TypeScript', 'SQL', 'Excel', 'Power BI',
@@ -53,13 +53,47 @@ def extract_profile(pages: list[dict]) -> dict:
                 if len(experiences) < 12:
                     experiences.append(quote)
                     seen_experiences.add(quote['excerpt'])
-            # Only explicitly stated years of professional experience; dates alone
-            # never imply continuous employment or a minimum tenure.
-            matches = re.finditer(r'(?:(\d{1,2})\s*年(?:以上)?(?:相关)?工作经验|(?:相关)?工作经验\s*(\d{1,2})\s*年)', line)
-            for match in matches:
-                value = int(match.group(1) or match.group(2))
-                if 0 < value <= 60:
-                    years.append({'years': value, 'evidence': quote})
+            # Explicit role experience such as '5年B2B销售经验' is not
+            # necessarily five years of total employment.
+            spans = set()
+            patterns = (
+                (r'(?<!\d)(\d{1,2})\s*年(?:以上|左右|多)?(?:相关)?工作经验', 'total'),
+                (r'(?:相关)?工作经验\s*(\d{1,2})\s*年', 'total'),
+                (r'(?<!\d)(\d{1,2})\s*年(?:以上|左右|多)?[^。；;，,\n]{0,36}?(?:经验|经历)', 'specific'),
+            )
+            for expression, scope in patterns:
+                for match in re.finditer(expression, line):
+                    value = int(match.group(1))
+                    if not 0 < value <= 60:
+                        continue
+                    span = (match.start(), match.end())
+                    if scope == 'specific' and any(
+                            start <= span[0] and end >= span[1]
+                            for start, end in spans):
+                        continue
+                    prefix = line[max(0, match.start()-12):match.start()]
+                    if re.search(r'(?:没有|未有|不具备|不足|缺少|要求至少|须有)
+    # Different statements may conflict; do not choose a "true" duration.
+    unique_years = sorted({item['years'] for item in years})
+    return {
+        'version': PROFILE_VERSION,
+        'education_mentions': education[:8],
+        'skill_mentions': skills,
+        'experience_mentions': experiences,
+        'stated_experience_years': unique_years,
+        'experience_duration_mentions': years,
+        'experience_years_conflict': len(unique_years) > 1,
+        'needs_source_review': needs_review,
+        'disclaimer': '仅从简历文字提取线索，不代表学历、技能或年限已经核实。',
+    }
+, prefix):
+                        continue
+                    if scope == 'specific' and not any(x in match.group(0) for x in
+                            ('销售','客户','开发','管理','工作','项目','技术','招聘',
+                             '财务','运营','设计','采购','市场','产品','服务','经验')):
+                        continue
+                    years.append({'years':value,'scope':scope,'evidence':quote})
+                    spans.add(span)
     # Different statements may conflict; do not choose a "true" duration.
     unique_years = sorted({item['years'] for item in years})
     return {
