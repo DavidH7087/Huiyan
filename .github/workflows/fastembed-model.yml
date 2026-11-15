@@ -1,0 +1,33 @@
+name: Huiyan FastEmbed Real Model
+on:
+  push:
+    branches: [main]
+    paths:
+      - backend/semantic.py
+      - backend/fastembed_cpu.py
+      - tests/test_fastembed_integration.py
+      - requirements-fastembed.txt
+      - .github/workflows/fastembed-model.yml
+  workflow_dispatch:
+jobs:
+  real-chinese-embedding:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install optional CPU inference dependencies
+        run: |
+          python -m pip install -r requirements-fastembed.txt pytest
+      - name: Explicitly provision public synthetic-test embedding model
+        run: |
+          python -m backend.fastembed_cpu prepare --cache-dir /tmp/huiyan-fastembed-model
+      - name: Run real model with network disabled in the embedding client
+        env:
+          HF_HUB_OFFLINE: '1'
+          HUIYAN_FASTEMBED_CACHE_DIR: /tmp/huiyan-fastembed-model
+          HUIYAN_REAL_FASTEMBED_TEST: '1'
+        run: python -m pytest -q tests/test_fastembed_integration.py

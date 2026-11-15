@@ -131,6 +131,10 @@ Windows 桌面版「招聘档案」页可创建 AES-256-GCM 加密备份 `.hyb`�
 - **诊断提示**：无法读出文字时显示 OCR 状态和实际原因，不默默当作空白简历。
 - OCR 的提取内容均需要人工核实，不能直接判定岗位资格。详见 [OCR 使用说明](docs/OCR_SETUP.md) 及 [阶段报告](docs/PHASE4D_REPORT.md)。
 
+## Phase 7B：中文 CPU 离线语义检索（可选）
+
+新增 FastEmbed + BGE-small-zh-v1.5 模型（约 90MB，512 维）适配器：只有用户显式准备本地权重后才启用，简历检索过程中绝不自动下载；未安装模型时仍使用已有文字证据和 BM25。当前**普通 Windows 安装包尚未捆绑该模型**，语义线索必须由 HR 核实。专用 GitHub Actions 工作流单独验证真实中文模型。见 [`docs/FASTEMBED_SETUP.md`](docs/FASTEMBED_SETUP.md) 与 [`docs/PHASE7B_REPORT.md`](docs/PHASE7B_REPORT.md)。
+
 ## Phase 7A：构建可追溯性
 
 Windows 安装包及便携 ZIP 每次构建都会附带 SHA-256 校验值、提交号及依赖版本清单，作为独立 GitHub Actions Artifact 保留 30 天。它是**文件完整性校验**，不是代码签名。详见 [`docs/PHASE7A_REPORT.md`](docs/PHASE7A_REPORT.md)。

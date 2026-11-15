@@ -106,14 +106,16 @@ class SemanticMatcher:
 
 class LocalSemanticService:
     """Lazy local-only model loading; absence or failure is visible via status()."""
-    def __init__(self, model_dir: str | None = None, reranker_dir: str | None = None):
+    def __init__(self, model_dir: str | None = None, reranker_dir: str | None = None,
+                 fastembed_cache_dir: str | None = None):
         self.model_dir = model_dir if model_dir is not None else os.environ.get('HUIYAN_EMBEDDING_MODEL', '')
         self.reranker_dir = reranker_dir if reranker_dir is not None else os.environ.get('HUIYAN_RERANKER_MODEL', '')
+        self.fastembed_cache_dir = fastembed_cache_dir if fastembed_cache_dir is not None else os.environ.get('HUIYAN_FASTEMBED_CACHE_DIR', '')
         self.matcher: SemanticMatcher | None = None
         self.error: str | None = None
 
     def status(self) -> dict:
-        if not self.model_dir:
+        if not self.model_dir and not self.fastembed_cache_dir:
             return {'state': 'not_configured', 'message': '未安装语义模型，目前使用文字证据检索'}
         if self.error:
             return {'state': 'error', 'message': self.error}
@@ -122,10 +124,19 @@ class LocalSemanticService:
         return {'state': 'configured', 'message': '本地模型将在首次筛选时加载'}
 
     def get_matcher(self) -> SemanticMatcher | None:
-        if not self.model_dir or self.error:
+        if (not self.model_dir and not self.fastembed_cache_dir) or self.error:
             return None
         if self.matcher is not None:
             return self.matcher
+        if not self.model_dir and self.fastembed_cache_dir:
+            try:
+                from .fastembed_cpu import FastEmbedEncoder
+                encoder = FastEmbedEncoder(self.fastembed_cache_dir)
+                self.matcher = SemanticMatcher(encoder=encoder)
+                return self.matcher
+            except (ImportError, OSError, RuntimeError, ValueError, TypeError) as exc:
+                self.error = '离线中文语义模型加载失败，请检查已安装的模型和 FastEmbed 依赖'
+                return None
         model = Path(self.model_dir).expanduser()
         if not model.is_dir():
             self.error = '找不到本地语义模型目录，请检查配置'

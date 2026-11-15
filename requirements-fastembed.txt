@@ -1,0 +1,3 @@
+-r requirements.txt
+# Opt-in CPU ONNX embeddings, small Chinese model; no GPU or PyTorch needed.
+fastembed>=0.9.0,<0.10
