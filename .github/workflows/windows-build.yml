@@ -119,6 +119,18 @@ jobs:
           $env:HUIYAN_DATA_DIR = Join-Path $env:RUNNER_TEMP 'huiyan-installed-smoke'
           $app = Start-Process -FilePath $installedExe -Wait -PassThru
           if ($app.ExitCode -ne 0) { throw "Installed EXE smoke failed with $($app.ExitCode)" }
+      - name: Verify silent uninstall preserves local HR data
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP 'Huiyan-Installer-Test'
+          $executable = Join-Path $target 'Huiyan.exe'
+          $uninstaller = Get-ChildItem -Path $target -Filter 'unins*.exe' -ErrorAction Stop | Select-Object -First 1
+          if (-not $uninstaller) { throw 'Installer did not provide an uninstaller' }
+          $removed = Start-Process -FilePath $uninstaller.FullName -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' -Wait -PassThru
+          if ($removed.ExitCode -ne 0) { throw "Uninstall failed: $($removed.ExitCode)" }
+          if (Test-Path $executable) { throw 'Uninstaller left the EXE installed' }
+          $database = Join-Path $env:RUNNER_TEMP 'huiyan-installed-smoke/huiyan.sqlite3'
+          if (-not (Test-Path $database)) { throw 'Uninstall unexpectedly removed HR local data' }
       - name: Generate installer checksums and build provenance
         shell: pwsh
         run: |
