@@ -104,7 +104,7 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
                 page.locator('#restorePassword').fill('a-long-synthetic-test-password')
                 page.locator('#restoreConfirm').fill('恢复')
                 page.locator('#restoreBackup').click()
-                page.get_by_text('已验证 1 份原始简历',exact=False).wait_for(timeout=45000)
+                page.get_by_text('已验证 3 份原始简历',exact=False).wait_for(timeout=45000)
                 assert (tmp_path / 'data' / 'huiyan.sqlite3').exists()
                 assert len(list(tmp_path.glob('restored-*'))) == 1
                 page.screenshot(path=str(output / 'huiyan-recovery.png'),full_page=True)
