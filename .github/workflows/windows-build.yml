@@ -38,7 +38,7 @@ jobs:
       - name: Run API tests on Windows
         run: |
           pip install reportlab
-          python -m pytest -q tests/test_api.py tests/test_profile_api.py tests/test_format_ingestion.py tests/test_backup.py tests/test_backup_api.py
+          python -m pytest -q tests/test_api.py tests/test_profile_api.py tests/test_format_ingestion.py tests/test_backup.py tests/test_backup_api.py tests/test_restore_profiles.py
       - name: Create portable EXE
         shell: pwsh
         run: |

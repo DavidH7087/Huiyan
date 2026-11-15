@@ -22,7 +22,8 @@ def user_data_dir() -> Path:
     local = os.getenv('LOCALAPPDATA')
     if not local:
         local = str(Path.home() / 'AppData' / 'Local')
-    return Path(local) / 'Huiyan' / 'data'
+    from backend.restore_profiles import active_data_directory
+    return active_data_directory(Path(local) / 'Huiyan')
 
 
 def run() -> int:

@@ -3,7 +3,7 @@ const nav = [...document.querySelectorAll('[data-view]')];
 const state = {
   page:'home', tasks:[], task:null, runs:[], run:null, result:null, selected:null,
   description:'', required:[], preferred:[], title:'', filter:'全部', busy:false, preview:null,
-  currentText:null, uploadSummary:null, search:'', health:null,
+  currentText:null, uploadSummary:null, search:'', health:null, profileStatus:null, recoveryNotice:'',
 };
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const e=escapeHtml;
@@ -21,6 +21,7 @@ const post=(url,data)=>api(url,{method:'POST',headers:{'Content-Type':'applicati
 const patch=(url,data)=>api(url,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
 async function withBusy(action){if(state.busy)return;state.busy=true;try{await action()}catch(err){console.error(err);toast(err.message||'操作失败，请重试')}finally{state.busy=false}}
 async function fetchTasks(){state.tasks=await api('/api/tasks')}
+async function fetchProfiles(){if(state.health?.restore_available)state.profileStatus=await api('/api/system/profiles')}
 function setPage(page){state.page=page;nav.forEach(n=>n.classList.toggle('active',n.dataset.view===page));el('breadcrumb').textContent=({home:'首页',tasks:'筛选任务',archive:'招聘档案',confirm:'确认招聘要求',import:'添加简历',results:'候选人筛选结果'})[page]||'慧眼';render()}
 function badge(label,color='neutral'){return `<span class="badge ${color}">${e(label)}</span>`}
 function taskCard(task){return `<button class="folder" data-task="${task.id}"><span class="folder-icon">▤</span><div class="grow"><strong>${e(task.title)}</strong><p>${task.resume_count||0} 份简历 · ${task.run_count||0} 轮筛选 · ${e(fmt(task.created_at))}</p></div>${badge(task.archived?'已归档':'进行中',task.archived?'neutral':'green')}<span class="subtle">›</span></button>`}
@@ -66,13 +67,28 @@ ${checks.map(c=>`<div class="evidence-item"><div class="toolbar" style="margin:0
 <div class="subpanel"><h3>人工审核</h3><label for="reviewStatus">审核状态</label><select id="reviewStatus">${['未审核','加入面试名单','需要补充资料','暂不推进'].map(v=>`<option value="${e(v)}" ${v===r.review_status?'selected':''}>${e(v)}</option>`).join('')}</select>
 <label for="reviewNote">备注</label><textarea id="reviewNote" style="min-height:74px" placeholder="填写人工审核意见……">${e(r.review_note||'')}</textarea><button class="btn" style="width:100%;margin-top:12px" data-save-review="${r.resume_id}">保存审核</button></div>`}
 function roundsMarkup(){return state.runs.map((r,i)=>`<div class="round-row" data-run="${r.id}"><span class="round-no">${state.runs.length-i}</span><div class="grow"><strong>${e(r.name)}</strong><p>${e(fmt(r.created_at))} · ${r.candidate_count} 人 · ${r.parent_id?'基于上一轮':'全量筛选'}${r.criteria?.source_filter&&r.criteria.source_filter!=='全部'?' · '+e(r.criteria.source_filter):''}</p></div>${state.result?.run?.id===r.id?badge('当前轮次','green'):'<span class="subtle small">查看 ›</span>'}</div>`).join('')||'<div class="empty">暂无筛选记录</div>'}
-function archivePage(){if(!state.task){return allTasks("all") + (state.health?.backup_available?`<div class="surface subpanel"><h2>加密备份招聘档案</h2><p class="hint">导出全部招聘任务、审核记录及原始简历。请妥善保存备份密码；遗失后无法恢复。</p><div class="actions" style="margin-top:12px"><input id="backupPassword" type="password" autocomplete="new-password" placeholder="设置至少 12 字符的备份密码" style="max-width:330px" aria-label="备份密码"><button class="btn secondary" id="createBackup">创建并下载加密备份</button></div><p class="hint">仅限本机 Windows 版；本备份文件含个人信息，切勿发送到公共仓库。</p></div>`:'')}return `<div class="toolbar"><button class="btn secondary small" id="archiveBack">← 所有任务</button><button class="btn small" data-go="results">查看候选人</button></div><div class="page-title"><h1>${e(state.task.title)} · 筛选档案</h1><p>每一次筛选都会单独记录条件和结果，不覆盖历史。</p></div><div class="surface"><h2 style="margin-bottom:18px">筛选轮次</h2>${roundsMarkup()}<div class="notice">筛选结果不会自动淘汰候选人；人工审核状态独立保存并保留修改记录。</div>${state.task.archived?'<div class="actions" style="margin-top:16px"><button class="btn secondary small" id="deleteArchivedTask">永久删除任务及全部简历（不可恢复）</button></div>':''}</div>`}
+function baseArchivePage(){if(!state.task){return allTasks("all") + (state.health?.backup_available?`<div class="surface subpanel"><h2>加密备份招聘档案</h2><p class="hint">导出全部招聘任务、审核记录及原始简历。请妥善保存备份密码；遗失后无法恢复。</p><div class="actions" style="margin-top:12px"><input id="backupPassword" type="password" autocomplete="new-password" placeholder="设置至少 12 字符的备份密码" style="max-width:330px" aria-label="备份密码"><button class="btn secondary" id="createBackup">创建并下载加密备份</button></div><p class="hint">仅限本机 Windows 版；本备份文件含个人信息，切勿发送到公共仓库。</p></div>`:'')}return `<div class="toolbar"><button class="btn secondary small" id="archiveBack">← 所有任务</button><button class="btn small" data-go="results">查看候选人</button></div><div class="page-title"><h1>${e(state.task.title)} · 筛选档案</h1><p>每一次筛选都会单独记录条件和结果，不覆盖历史。</p></div><div class="surface"><h2 style="margin-bottom:18px">筛选轮次</h2>${roundsMarkup()}<div class="notice">筛选结果不会自动淘汰候选人；人工审核状态独立保存并保留修改记录。</div>${state.task.archived?'<div class="actions" style="margin-top:16px"><button class="btn secondary small" id="deleteArchivedTask">永久删除任务及全部简历（不可恢复）</button></div>':''}</div>`}
+function archivePage(){
+  const original=baseArchivePage();
+  if(state.task || !state.health?.restore_available)return original;
+  const profile=state.profileStatus||{};
+  const notice=state.recoveryNotice?`<div class="notice">${e(state.recoveryNotice)}</div>`:'';
+  const pending=profile.pending_profile?`<div class="notice warn">新的招聘档案已准备好。请完全关闭并重新打开慧眼后生效。</div>`:'';
+  const switchBack=profile.can_return_to_original && !profile.pending_profile
+    ? '<button class="btn secondary small" id="switchOriginal">下次启动切回最初档案</button>' : '';
+  return original+`<div class="surface subpanel"><h2>恢复加密招聘档案</h2>
+    <p class="hint">从之前导出的 .hyb 加密文件恢复。系统验证备份后建立独立档案，<strong>不会覆盖当前任何简历或筛选历史</strong>。关闭再重新打开慧眼后切换。</p>
+    <div class="field"><label for="restoreFile">加密备份文件</label><input type="file" id="restoreFile" accept=".hyb,application/octet-stream"></div>
+    <div class="actions" style="margin-top:12px"><input id="restorePassword" type="password" autocomplete="off" placeholder="原备份密码" aria-label="恢复密码" style="max-width:300px"><input id="restoreConfirm" placeholder="输入“恢复”确认" aria-label="恢复确认" style="max-width:180px"><button class="btn secondary" id="restoreBackup">验证并恢复（重启生效）</button></div>
+    <p class="hint">仅在本机处理。密码不会保存；恢复需要额外磁盘空间。请不要把备份上传到公共 GitHub。</p>
+    ${pending}${notice}${switchBack}</div>`;
+}
 function previewPage(){if(!state.preview)return '<p>没有已打开的简历</p>';const p=state.preview.profile||{};const edu=(p.education_mentions||[]).map(x=>x.label).join('、')||'未明确提及';const skills=(p.skill_mentions||[]).map(x=>x.label).join('、')||'未明确提及';const years=(p.stated_experience_years||[]).join('、')||'未明确提及';const profileHtml=`<div class="surface" style="margin-bottom:15px"><h2>结构化信息（请核对原文）</h2><p class="hint">学历：${e(edu)} · 技能：${e(skills)} · 明确提及的工作年限：${e(years)}${p.stated_experience_years?.length?' 年':''}</p>${p.experience_years_conflict?'<p class="hint">⚠ 工作年限描述存在差异，请人工核实。</p>':''}${p.needs_source_review?'<p class="hint">⚠ 部分信息来自扫描件或解析存疑，请查看原件。</p>':''}<p class="hint">这些只是文字提及，不代表学历和技能已经验证。</p></div>`;return `<div class="toolbar"><button class="btn secondary" data-go="results">← 返回名单</button><a class="btn small" target="_blank" rel="noopener" href="/api/tasks/${state.task.id}/resumes/${state.preview.id}/original">打开原文件</a></div><div class="page-title"><h1>${e(state.preview.filename)}</h1><p>提取的纯文本，仅供核对。PDF 可通过原文件查看。</p></div>${profileHtml}${state.preview.pages.map(p=>`<div class="surface" style="margin-bottom:15px"><h2 style="margin-bottom:12px">第 ${Number(p.page)} 页</h2><div class="textview">${e(p.text)}</div></div>`).join('')}`}
 function render(){switch(state.page){case 'home':view.innerHTML=home();break;case 'confirm':view.innerHTML=confirm();break;case 'import':view.innerHTML=importPage();break;case 'tasks':view.innerHTML=allTasks();break;case 'archive':view.innerHTML=archivePage();break;case 'results':view.innerHTML=resultsPage();break;case 'preview':view.innerHTML=previewPage();break;default:view.innerHTML=home();}}
 async function showTask(taskId,asArchive=false){state.task=await api(`/api/tasks/${taskId}`);state.runs=await api(`/api/tasks/${taskId}/runs`);state.run=state.runs[0]||null;state.selected=null;state.filter='全部';state.search='';if(state.run){if(asArchive){state.result=await api(`/api/tasks/${taskId}/runs/${state.run.id}/results`);setPage('archive')}else await showRun(state.run.id)}else setPage(asArchive?'archive':'results')}
 async function showRun(runId){state.result=await api(`/api/tasks/${state.task.id}/runs/${runId}/results`);state.run=state.runs.find(r=>r.id===runId)||null;state.selected=state.result.results[0]?.resume_id||null;setPage('results')}
 async function createRun(query='',parent=false,sourceFilter='全部'){const response=await post(`/api/tasks/${state.task.id}/runs`,{name:parent?`补充筛选 · ${query.slice(0,20)||'新条件'}`:'综合筛选',query,scope:parent?'parent':'all',parent_id:parent?state.result?.run?.id:null,source_filter:sourceFilter});state.runs=await api(`/api/tasks/${state.task.id}/runs`);await showRun(response.id);toast(`已保存筛选轮次，包含 ${response.candidate_count} 份简历`)}
-nav.forEach(n=>n.addEventListener('click',()=>{const p=n.dataset.view;state.task=null;state.result=null;if(p==='home'){setPage(p);return}withBusy(async()=>{await fetchTasks();setPage(p)})}));
+nav.forEach(n=>n.addEventListener('click',()=>{const p=n.dataset.view;state.task=null;state.result=null;if(p==='home'){setPage(p);return}withBusy(async()=>{await fetchTasks();if(p==='archive')await fetchProfiles();setPage(p)})}));
 view.addEventListener('input',ev=>{if(ev.target.id==='candidateSearch'){state.search=ev.target.value;const cursor=ev.target.selectionStart;render();const inp=el('candidateSearch');if(inp){inp.focus();inp.setSelectionRange(cursor,cursor)}}});
 view.addEventListener('click',ev=>withBusy(async()=>{
   const target=ev.target.closest('button,[data-candidate],[data-run]');if(!target)return;
@@ -127,6 +143,24 @@ view.addEventListener('click',ev=>withBusy(async()=>{
     const link=document.createElement('a');link.href=url;link.download=`Huiyan-backup-${new Date().toISOString().slice(0,10)}.hyb`;
     document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
     toast('加密备份已生成，请妥善保管下载文件和密码');return;
+  }
+  if(target.id==='restoreBackup'){
+    const file=el('restoreFile')?.files?.[0];const password=el('restorePassword')?.value||'';
+    const confirm=el('restoreConfirm')?.value?.trim()||'';
+    if(!file){toast('请选择 .hyb 加密备份文件');return}
+    if(password.length<12){toast('请输入至少 12 字符的备份密码');return}
+    if(confirm!=='恢复'){toast('请在确认框中输入“恢复”');return}
+    const form=new FormData();form.append('file',file,file.name);form.append('password',password);form.append('confirm',confirm);
+    toast('正在验证并恢复加密档案，请不要关闭窗口');
+    const result=await api('/api/system/restore',{method:'POST',body:form});
+    state.recoveryNotice=`已验证 ${result.restored_files} 份原始简历。请完全关闭并重新打开慧眼，恢复档案才会生效；原档案仍安全保留在本机。`;
+    await fetchProfiles();setPage('archive');toast('恢复验证成功，请关闭后重启慧眼');return;
+  }
+  if(target.id==='switchOriginal'){
+    if(!window.confirm('确定在下次启动时切回最初的本地档案？当前恢复档案会继续保留。'))return;
+    await post('/api/system/profile/original',{});
+    state.recoveryNotice='已安排切回最初的本地档案。请关闭并重新打开慧眼，当前档案不会被删除。';
+    await fetchProfiles();setPage('archive');return;
   }
   if(target.id==='archiveBack'){state.task=null;setPage('archive');return;}
   if(target.id==='deleteArchivedTask'){

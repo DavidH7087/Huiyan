@@ -13,7 +13,7 @@ import tempfile
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -21,7 +21,8 @@ from pydantic import BaseModel, Field
 from openpyxl import Workbook
 from .storage import Store
 from .local_security import DesktopRequestGuard
-from .backup import BackupError, create_encrypted_backup
+from .backup import BackupError, MAX_CONTENT, create_encrypted_backup
+from .restore_profiles import stage_restore, profile_status, schedule_original_profile
 from .duplicates import annotate_possible_duplicates, collect_duplicate_groups
 from .engine import split_terms, suggest_conditions, evaluate
 from .semantic import LocalSemanticService
@@ -108,7 +109,7 @@ def create_app(data_dir:Path|None=None):
     store=Store(root)
     semantic=LocalSemanticService()
     ocr=LocalOcrService()
-    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.6.0-preview')
+    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.7.0-preview')
     if os.environ.get('HUIYAN_DESKTOP_MODE') == '1':
         app.add_middleware(DesktopRequestGuard)
 
@@ -116,7 +117,8 @@ def create_app(data_dir:Path|None=None):
     def health():
         return {'ok':True,'product':'慧眼','mode':'hybrid_retrieval_v0.2','offline':True,
                 'semantic':semantic.status(),'ocr':ocr.status(),
-                'backup_available':os.environ.get('HUIYAN_DESKTOP_MODE') == '1'}
+                'backup_available':os.environ.get('HUIYAN_DESKTOP_MODE') == '1',
+                'restore_available':os.environ.get('HUIYAN_DESKTOP_MODE') == '1'}
 
     @app.post('/api/system/backup')
     def export_backup(payload: BackupPassword):
@@ -138,6 +140,56 @@ def create_app(data_dir:Path|None=None):
                             media_type='application/octet-stream',
                             headers={'Cache-Control': 'no-store'},
                             background=BackgroundTask(lambda: path.unlink(missing_ok=True)))
+
+    @app.get('/api/system/profiles')
+    def profiles():
+        if os.environ.get('HUIYAN_DESKTOP_MODE') != '1':
+            raise HTTPException(403, '档案恢复仅在 Windows 本地桌面模式中可用')
+        try:
+            return profile_status(store.root)
+        except BackupError as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    @app.post('/api/system/restore')
+    async def restore_backup(password: str = Form(...), confirm: str = Form(...),
+                             file: UploadFile = File(...)):
+        """Restore to a separate local profile; switch after restart only."""
+        if os.environ.get('HUIYAN_DESKTOP_MODE') != '1':
+            raise HTTPException(403, '档案恢复仅在 Windows 本地桌面模式中可用')
+        if confirm != '恢复':
+            raise HTTPException(400, '请输入“恢复”确认操作')
+        if not 12 <= len(password) <= 256:
+            raise HTTPException(400, '备份密码需要 12 至 256 个字符')
+        # The upload is an AES-encrypted archive, not a plaintext resume dump.
+        # Stream to a bounded temp file so multi-hundred-MB backups do not fill RAM.
+        temp = None
+        try:
+            with tempfile.NamedTemporaryFile(prefix='huiyan-import-', suffix='.hyb',
+                                            dir=store.root.parent, delete=False) as out:
+                temp = Path(out.name)
+                total = 0
+                while chunk := await file.read(1024 * 1024):
+                    total += len(chunk)
+                    if total > MAX_CONTENT * 2:
+                        raise HTTPException(413, '备份超过本版本支持的最大文件大小')
+                    out.write(chunk)
+            try:
+                return await run_in_threadpool(stage_restore, store.root, temp, password)
+            except BackupError as exc:
+                raise HTTPException(400, str(exc)) from None
+        finally:
+            if temp is not None:
+                temp.unlink(missing_ok=True)
+            await file.close()
+
+    @app.post('/api/system/profile/original')
+    def use_original_profile():
+        if os.environ.get('HUIYAN_DESKTOP_MODE') != '1':
+            raise HTTPException(403, '档案恢复仅在 Windows 本地桌面模式中可用')
+        try:
+            return schedule_original_profile(store.root)
+        except BackupError as exc:
+            raise HTTPException(400, str(exc)) from None
 
     @app.post('/api/criteria/suggest')
     def criteria_suggest(payload:DescriptionInput):
