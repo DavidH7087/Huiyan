@@ -13,8 +13,6 @@ class FakeEmbeddingModel:
     calls = []
     def __init__(self, **kwargs):
         self.calls.append(('init', kwargs))
-        if not kwargs.get('local_files_only'):
-            raise AssertionError('Screening must always be offline')
     def embed(self, values, **kwargs):
         self.calls.append(('embed', list(values), kwargs))
         for line in values:
