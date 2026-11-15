@@ -2,7 +2,7 @@ const view = document.getElementById('view');
 const nav = [...document.querySelectorAll('[data-view]')];
 const state = {
   page:'home', tasks:[], task:null, runs:[], run:null, result:null, selected:null,
-  description:'', required:[], preferred:[], excluded:[], matchMode:'aliases', title:'', filter:'全部', busy:false, preview:null,
+  description:'', descriptionLeads:[], required:[], preferred:[], excluded:[], matchMode:'aliases', title:'', editing:false, filter:'全部', busy:false, preview:null,
   currentText:null, uploadSummary:null, search:'', health:null, profileStatus:null, recoveryNotice:'',
 };
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -28,15 +28,16 @@ function taskCard(task){return `<button class="folder" data-task="${task.id}"><s
 function home(){return `<div class="home"><div class="hero"><h1>开始简历筛选</h1><p>输入岗位要求，添加简历，快速找到值得关注的人选。</p></div>
 <div class="entry"><textarea id="newDescription" placeholder="输入招聘要求，或直接粘贴岗位 JD……">${e(state.description)}</textarea><div class="entry-footer"><span class="subtle small">关键词与自然语言均可使用，下一步可修改条件</span><button id="describeNext" class="btn">下一步　→</button></div></div>
 <section class="recent"><div class="section-head"><h2>最近的任务</h2><button class="btn ghost small" data-go="archive">查看全部</button></div><div class="task-list">${state.tasks.slice(0,4).map(taskCard).join('')||'<div class="empty">还没有招聘任务。从上方创建第一个任务。</div>'}</div></section></div>`}
-function confirm(){return `<div class="page-title"><h1>确认筛选要求</h1><p>关键词可选。即使只填写岗位描述，也可以开始筛选；描述仅提供待核实的文字线索，最终由 HR 判断。</p></div>
+function confirm(){return `<div class="page-title"><h1>${state.editing?'编辑招聘要求':'确认筛选要求'}</h1><p>关键词可选。即使只填写岗位描述，也可以开始筛选；描述仅提供待核实的文字线索，最终由 HR 判断。</p></div>
 <div class="surface"><div class="field"><label for="jobTitle">岗位或任务名称</label><input id="jobTitle" value="${e(state.title)}" placeholder="例如：销售经理招聘"></div>
 <div class="field"><label for="descConfirm">招聘需求</label><textarea id="descConfirm">${e(state.description)}</textarea></div>
+<div class="field"><label for="descClues">从描述提取的参考线索（可修改或全部删除）</label><textarea id="descClues" style="min-height:76px" placeholder="系统提取的可选检索线索">${e(state.descriptionLeads.join('、'))}</textarea><small>这些线索只帮助发现相关文字；删除它们不会改变您手工填写的必须或优先条件。最多保留 8 项。</small></div>
 <div class="form-grid"><div class="field"><label for="mustTerms">必须具备</label><textarea id="mustTerms" style="min-height:110px">${e(state.required.join('、'))}</textarea><small>可留空。多个条件使用顿号分隔；未发现相关文字不会自动淘汰。</small></div>
 <div class="field"><label for="bonusTerms">优先考虑</label><textarea id="bonusTerms" style="min-height:110px">${e(state.preferred.join('、'))}</textarea><small>这些条件有相关经历则优先显示，但并非必要条件。</small></div></div>
 <div class="form-grid"><div class="field"><label for="excludedTerms">排除线索（选填）</label><textarea id="excludedTerms" style="min-height:72px" placeholder="例如：仅短期兼职、未独立负责">${e(state.excluded.join('、'))}</textarea><small>只标记需要 HR 复核的线索，系统不会自动淘汰或删除简历。不要使用年龄、性别等敏感个人特征。</small></div>
 <div class="field"><label for="keywordMode">关键词匹配方式</label><select id="keywordMode"><option value="aliases" ${state.matchMode==='aliases'?'selected':''}>智能同义（默认）</option><option value="exact" ${state.matchMode==='exact'?'selected':''}>精确文字（不扩展同义词）</option></select><small>仅影响关键词检索，不代表判断应聘者真实能力。</small></div></div>
 <div class="notice">自动提取只是建议。描述中的补充线索只辅助检索，不会自动成为必须条件；“最好”“不限”等表达请人工核对。</div>
-<div class="actions" style="margin-top:22px"><button class="btn secondary" data-go="home">返回修改</button><button class="btn" id="createTask">创建任务，添加简历 →</button></div></div>`}
+<div class="actions" style="margin-top:22px"><button class="btn secondary" data-go="home">返回修改</button><button class="btn" id="createTask">${state.editing?'保存条件（历史轮次不变）':'创建任务，添加简历 →'}</button></div></div>`}
 function importPage(){return `<div class="page-title"><h1>添加简历</h1><p>${e(state.task?.title||'')} · 可以一次添加多个文件或整个文件夹。</p></div>
 <div class="surface"><div class="dropzone"><strong>选择简历文件</strong><p>支持 PDF、DOCX、TXT、ZIP；${state.health?.ocr?.state==='ready' ? '扫描 PDF 和图片式 Word 将自动尝试本地 OCR 识别。' : '当前扫描件识别未就绪；文字 PDF 和普通 Word 不受影响。'}</p><input type="file" id="fileInput" multiple accept=".pdf,.docx,.txt,.zip"><p style="margin-top:16px">或者选择整个文件夹</p><input type="file" id="folderInput" multiple webkitdirectory directory></div>
 ${state.health?.ocr ? `<p class="hint">文字识别：${e(state.health.ocr.message)}${state.health.ocr.state==='ready'?'':'。扫描版简历可能导入失败，请查看 OCR 配置说明。'}</p>` : ''}<p id="importProgress" class="hint" role="status" aria-live="polite"></p><div class="actions" style="margin-top:18px"><button class="btn secondary" data-go="tasks">稍后添加</button><button class="btn" id="uploadFiles">导入所选简历</button></div>
@@ -51,7 +52,7 @@ function resultsPage(){const run=state.result?.run;const rows=state.result?.resu
 const visible=rows.filter(r=>(state.filter==='全部'||(state.filter==='面试名单'?r.review_status==='加入面试名单':r.evaluation.group===state.filter)) && (`${r.name} ${r.filename} ${r.evaluation.checks.map(c=>c.term).join(' ')}`.toLowerCase().includes(state.search.toLowerCase())));
 const selected=visible.find(x=>x.resume_id===state.selected)||visible[0];
 const counts=groupCounts(rows);
-return `<div class="task-header"><div><h1>${e(state.task?.title||'筛选任务')}</h1><div class="subtle small">${e(run?.name||'尚未筛选')} · ${e(fmt(run?.created_at))}</div></div><div class="inline-actions"><button class="btn secondary small" id="uploadMore">+ 添加简历</button><button class="btn secondary small" id="toggleArchive">${state.task?.archived?'恢复任务':'归档任务'}</button>${run?`<a class="btn small" href="/api/tasks/${state.task.id}/runs/${run.id}/export">导出 Excel</a>`:''}</div></div>
+return `<div class="task-header"><div><h1>${e(state.task?.title||'筛选任务')}</h1><div class="subtle small">${e(run?.name||'尚未筛选')} · ${e(fmt(run?.created_at))}</div></div><div class="inline-actions"><button class="btn secondary small" id="uploadMore">+ 添加简历</button><button class="btn secondary small" id="editCriteria">编辑岗位条件</button><button class="btn secondary small" id="toggleArchive">${state.task?.archived?'恢复任务':'归档任务'}</button>${run?`<a class="btn small" href="/api/tasks/${state.task.id}/runs/${run.id}/export">导出 Excel</a>`:''}</div></div>
 <div class="stat-row"><div class="stat"><strong>${rows.length}</strong><span>本轮候选人</span></div>${counts.map(c=>`<div class="stat"><strong>${c.count}</strong><span>${c.name}</span></div>`).join('')}</div>
 <div class="toolbar"><div class="left"><h2>候选人</h2><span class="subtle small">按相关文字证据排序，语义线索需人工核实</span></div><button class="btn secondary small" id="openHistory">筛选历史 (${state.runs.length})</button></div>
 ${run?.criteria?.semantic?.state==='error'?`<div class="notice warn">本地语义分析暂不可用，已改用基础文字匹配。请在设置中检查模型。</div>`:''}${!run?`<div class="empty"><p>还没有筛选结果。</p><button class="btn" id="firstScreening">开始第一轮筛选</button></div>`:`<div class="filters">${['全部','优先查看','需要确认','面试名单'].map(f=>`<button class="filter ${state.filter===f?'active':''}" data-filter="${e(f)}">${e(f)}</button>`).join('')}</div>
@@ -105,14 +106,20 @@ view.addEventListener('click',ev=>withBusy(async()=>{
   if(target.id==='describeNext'){
     state.description=el('newDescription').value.trim();if(!state.description){toast('请先输入岗位要求');return}
     const suggestion=await post('/api/criteria/suggest',{description:state.description});
-    state.required=suggestion.required;state.preferred=suggestion.preferred;state.excluded=[];state.matchMode='aliases';state.title='';setPage('confirm');return;
+    state.required=suggestion.required;state.preferred=suggestion.preferred;state.descriptionLeads=suggestion.description_leads||[];state.excluded=[];state.matchMode='aliases';state.title='';state.editing=false;setPage('confirm');return;
   }
   if(target.id==='createTask'){
-    state.title=el('jobTitle').value.trim();state.description=el('descConfirm').value.trim();state.required=terms(el('mustTerms').value);state.preferred=terms(el('bonusTerms').value);state.excluded=terms(el('excludedTerms').value);state.matchMode=el('keywordMode').value;
+    state.title=el('jobTitle').value.trim();state.description=el('descConfirm').value.trim();state.descriptionLeads=terms(el('descClues').value);state.required=terms(el('mustTerms').value);state.preferred=terms(el('bonusTerms').value);state.excluded=terms(el('excludedTerms').value);state.matchMode=el('keywordMode').value;
+    if(state.descriptionLeads.length>8){toast('描述参考线索最多保留 8 项');return}
     if(!state.title){toast('请输入岗位或任务名称');return}
     if(!state.description&&!state.required.length&&!state.preferred.length){toast('请填写招聘描述或至少一个筛选关键词');return}
-    state.task=await post('/api/tasks',{title:state.title,description:state.description,required:state.required,preferred:state.preferred,excluded:state.excluded,match_mode:state.matchMode});
+    const config={title:state.title,description:state.description,description_leads:state.descriptionLeads,required:state.required,preferred:state.preferred,excluded:state.excluded,match_mode:state.matchMode};
+    if(state.editing){state.task=await patch(`/api/tasks/${state.task.id}`,config);state.editing=false;await fetchTasks();if(state.result?.run?.id)await showRun(state.result.run.id);else setPage('import');toast('招聘要求已更新；既有筛选记录仍保持不变');return;}
+    state.task=await post('/api/tasks',config);
     state.task.resume_count=0;state.uploadSummary=null;await fetchTasks();setPage('import');toast('招聘任务已创建');return;
+  }
+  if(target.id==='editCriteria'){
+    const task=state.task;state.editing=true;state.title=task.title;state.description=task.description;state.descriptionLeads=task.description_leads??[];state.required=[...task.required];state.preferred=[...task.preferred];state.excluded=[...task.excluded];state.matchMode=task.match_mode;setPage('confirm');return;
   }
   if(target.id==='uploadMore'){state.uploadSummary=null;state.task=await api(`/api/tasks/${state.task.id}`);setPage('import');return;}
   if(target.id==='uploadFiles'){
