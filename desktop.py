@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+import secrets
 import sys
 import threading
 import time
@@ -37,10 +38,12 @@ def run() -> int:
     directory.mkdir(parents=True, exist_ok=True)
     os.environ['HUIYAN_DATA_DIR'] = str(directory)
     os.environ['HUIYAN_DESKTOP_MODE'] = '1'
+    os.environ['HUIYAN_SESSION_TOKEN'] = secrets.token_urlsafe(32)
     # Binding to 127.0.0.1 (not all interfaces) is mandatory for desktop use.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(('127.0.0.1', 0))
         port = sock.getsockname()[1]
+    os.environ['HUIYAN_SESSION_PORT'] = str(port)
     import uvicorn
     from backend.app import create_app
 
@@ -70,7 +73,7 @@ def run() -> int:
         if os.getenv('HUIYAN_DESKTOP_SMOKE') == '1':
             return 0
         import webview
-        webview.create_window('慧眼 · 智能简历筛选', url, width=1220, height=790, min_size=(940, 600))
+        webview.create_window('慧眼 · 智能简历筛选', url + '/?session=' + os.environ['HUIYAN_SESSION_TOKEN'], width=1220, height=790, min_size=(940, 600))
         webview.start(gui='edgechromium')
         return 0
     finally:

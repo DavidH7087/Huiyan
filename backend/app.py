@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 from openpyxl import Workbook
 from .storage import Store
 from .local_security import DesktopRequestGuard
+from .session_security import DesktopSessionGuard
 from .backup import BackupError, MAX_CONTENT, create_encrypted_backup
 from .restore_profiles import stage_restore, profile_status, schedule_original_profile
 from .duplicates import annotate_possible_duplicates, collect_duplicate_groups
@@ -114,8 +115,11 @@ def create_app(data_dir:Path|None=None):
     store=Store(root)
     semantic=LocalSemanticService()
     ocr=LocalOcrService()
-    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.7.1-preview')
+    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.7.2-preview')
     if os.environ.get('HUIYAN_DESKTOP_MODE') == '1':
+        if os.environ.get('HUIYAN_SESSION_TOKEN'):
+            app.add_middleware(DesktopSessionGuard)
+        # Host/Origin validation must run before session bootstrapping.
         app.add_middleware(DesktopRequestGuard)
 
     @app.get('/api/health')

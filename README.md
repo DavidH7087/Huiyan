@@ -131,6 +131,10 @@ Windows 桌面版「招聘档案」页可创建 AES-256-GCM 加密备份 `.hyb`�
 - **诊断提示**：无法读出文字时显示 OCR 状态和实际原因，不默默当作空白简历。
 - OCR 的提取内容均需要人工核实，不能直接判定岗位资格。详见 [OCR 使用说明](docs/OCR_SETUP.md) 及 [阶段报告](docs/PHASE4D_REPORT.md)。
 
+## Phase 6C：本地桌面会话隔离
+
+Windows 程序每次启动生成随机会话令牌，通过本地 WebView2 引导后创建安全的 `HttpOnly` Cookie。除健康检查外，其余本地候选人资料 API 必须经过授权的窗口访问，同时继续启用 Host/Origin 验证。此机制减少同一机器其他浏览器误访问、跨站脚本或伪造本地域名的风险，但不替代 Windows 账户权限或磁盘加密。详见 [`docs/PHASE6C_REPORT.md`](docs/PHASE6C_REPORT.md)。
+
 ## Phase 6B：可选排除线索与精确/同义关键词模式
 
 每个招聘任务可分别配置「必须具备」「优先考虑」「排除线索」以及「关键词匹配方式」。排除命中只会标记为 HR 待核实，绝不自动删除候选人。扫描/OCR 提取仍需原件核对。关键词模式分为默认「智能同义」和「精确文字」（不扩展同义词）。已有招聘数据库自动迁移，旧轮次历史保持原样。Excel 导出附带排除线索列与匹配模式。详见 [`docs/PHASE6B_REPORT.md`](docs/PHASE6B_REPORT.md)。
