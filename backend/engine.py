@@ -132,17 +132,59 @@ def find_evidence(term: str, pages: list[dict], match_mode: str = 'aliases') -> 
                             "excerpt": excerpt, "source": page.get("source", "text")}
     return None
 
+
+def description_clues(description: str, limit: int = 8) -> list[str]:
+    """Extract conservative *search leads* from free-form Chinese requirements.
+
+    This is deliberately not an LLM or a reliable interpretation of job duties.
+    No lead becomes a mandatory condition; HR can inspect the source evidence.
+    """
+    if not description or not description.strip():
+        return []
+    leads: list[str] = []
+    # Separate independent requirements, including common list punctuation.
+    clauses = re.split(r"[。！？!?；;\n，,、]+", description)
+    stop_prefixes = (
+        "招聘", "招募", "寻找", "需要", "希望", "要求", "候选人", "应聘者",
+        "最好", "优先", "具备", "拥有", "具有", "有", "熟悉", "掌握",
+        "能够", "可以", "擅长", "负责", "独立", "相关", "一定的",
+    )
+    for raw in clauses:
+        part = raw.strip().strip("：: ")
+        if not part or any(x in part for x in ("不要求", "无需", "不限", "不限制", "不考虑")):
+            continue
+        # Known occupational vocabulary is already validated by HR in the UI.
+        for canonical, aliases in ALIASES.items():
+            if any(_contains_alias(part, item) for item in (canonical, *aliases)):
+                if canonical not in leads:
+                    leads.append(canonical)
+        candidate = part
+        for _ in range(4):
+            updated = re.sub(r"^(?:"+ "|".join(stop_prefixes) + r")", "", candidate).strip()
+            if updated == candidate:
+                break
+            candidate = updated
+        candidate = re.sub(r"(?:的候选人|的人选|相关经验|工作经验|经验|能力|背景|方面)$", "", candidate).strip()
+        if 2 <= len(candidate) <= 24 and not re.fullmatch(r"(?:人选|人才|经验|能力|工作|岗位|销售|技术)", candidate):
+            if candidate not in leads:
+                leads.append(candidate)
+        if len(leads) >= limit:
+            break
+    return leads[:limit]
+
+
 def evaluate(required: list[str], preferred: list[str], pages: list[dict], semantic_matcher=None,
-             excluded: list[str] | None = None, match_mode: str = 'aliases') -> dict:
+             excluded: list[str] | None = None, match_mode: str = 'aliases',
+             term_modes: dict[str,str] | None = None) -> dict:
     checks=[]
     excluded=excluded or []
     for term, kind in [(x, "required") for x in required]+[(x, "preferred") for x in preferred]:
-        evidence=find_evidence(term,pages,match_mode)
+        evidence=find_evidence(term,pages,(term_modes or {}).get(term,match_mode))
         checks.append({"term":term,"kind":kind,"state":("OCR文字待核实" if evidence and evidence.get("source")=="ocr" else "有相关文字" if evidence else "待核实"),
                        "evidence":evidence,"semantic_hint":None})
     # Exclusion evidence is a manual verification signal, never a deletion rule.
     for term in excluded:
-        evidence=find_evidence(term,pages,match_mode)
+        evidence=find_evidence(term,pages,(term_modes or {}).get(term,match_mode))
         checks.append({'term':term,'kind':'excluded',
                        'state':('OCR排除线索待核实' if evidence and evidence.get('source')=='ocr'
                                 else '排除线索待人工核实' if evidence else '未发现排除线索'),

@@ -13,19 +13,20 @@ import tempfile
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
 from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from openpyxl import Workbook
 from .storage import Store
+from .diagnostics import inspect_local_data
 from .local_security import DesktopRequestGuard
 from .session_security import DesktopSessionGuard
 from .backup import BackupError, MAX_CONTENT, create_encrypted_backup
 from .restore_profiles import stage_restore, profile_status, schedule_original_profile
 from .duplicates import annotate_possible_duplicates, collect_duplicate_groups
-from .engine import split_terms, suggest_conditions, evaluate
+from .engine import split_terms, suggest_conditions, description_clues, evaluate
 from .retrieval import bm25_relevance
 from .semantic import LocalSemanticService
 from .ocr import LocalOcrService
@@ -42,6 +43,8 @@ class TaskCreate(BaseModel):
     preferred: list[str]=Field(default_factory=list)
     excluded: list[str]=Field(default_factory=list)
     match_mode: Literal['aliases','exact']='aliases'
+    description_leads: list[str]|None=Field(default=None,max_length=8)
+    term_modes: dict[str,Literal['aliases','exact']]=Field(default_factory=dict,max_length=80)
 
 class TaskPatch(BaseModel):
     title: str|None=None
@@ -50,6 +53,8 @@ class TaskPatch(BaseModel):
     preferred: list[str]|None=None
     excluded: list[str]|None=None
     match_mode: Literal['aliases','exact']|None=None
+    description_leads: list[str]|None=Field(default=None,max_length=8)
+    term_modes: dict[str,Literal['aliases','exact']]|None=Field(default=None,max_length=80)
     archived: bool|None=None
 
 class TaskDelete(BaseModel):
@@ -91,8 +96,16 @@ def get_task(cn,task_id):
     d['required']=json.loads(d['required'])
     d['preferred']=json.loads(d['preferred'])
     d['excluded']=json.loads(d['excluded'])
+    d['description_leads']=json.loads(d['description_leads']) if d['description_leads'] is not None else None
+    d['term_modes']=json.loads(d['term_modes'])
     d['archived']=bool(d['archived'])
     return d
+
+def task_audit_snapshot(task):
+    return {key:task.get(key) for key in
+            ('title','description','required','preferred','excluded',
+             'match_mode','description_leads','term_modes','archived')}
+
 
 def get_run(cn,task_id,run_id):
     row=cn.execute('SELECT * FROM runs WHERE id=? AND task_id=?',(run_id,task_id)).fetchone()
@@ -119,7 +132,7 @@ def create_app(data_dir:Path|None=None):
     store=Store(root)
     semantic=LocalSemanticService()
     ocr=LocalOcrService()
-    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.7.2-preview')
+    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.9.0-preview')
     if os.environ.get('HUIYAN_DESKTOP_MODE') == '1':
         if os.environ.get('HUIYAN_SESSION_TOKEN'):
             app.add_middleware(DesktopSessionGuard)
@@ -132,6 +145,12 @@ def create_app(data_dir:Path|None=None):
                 'semantic':semantic.status(),'ocr':ocr.status(),
                 'backup_available':os.environ.get('HUIYAN_DESKTOP_MODE') == '1',
                 'restore_available':os.environ.get('HUIYAN_DESKTOP_MODE') == '1'}
+
+    @app.get('/api/system/diagnostics')
+    def local_diagnostics():
+        if os.environ.get('HUIYAN_DESKTOP_MODE') != '1':
+            raise HTTPException(403,'数据完整性检查只在本地桌面模式中可用')
+        return inspect_local_data(store.root)
 
     @app.post('/api/system/backup')
     def export_backup(payload: BackupPassword):
@@ -206,7 +225,7 @@ def create_app(data_dir:Path|None=None):
 
     @app.post('/api/criteria/suggest')
     def criteria_suggest(payload:DescriptionInput):
-        return suggest_conditions(payload.description)
+        return {**suggest_conditions(payload.description), 'description_leads':description_clues(payload.description)}
 
     @app.get('/api/tasks')
     def tasks():
@@ -222,8 +241,10 @@ def create_app(data_dir:Path|None=None):
     @app.post('/api/tasks')
     def new_task(payload:TaskCreate):
         with store.connect() as cn:
-            c=cn.execute('INSERT INTO tasks(title,description,required,preferred,excluded,match_mode) VALUES(?,?,?,?,?,?)',
-                (payload.title.strip(),payload.description,dumps(split_terms(payload.required)),dumps(split_terms(payload.preferred)),dumps(split_terms(payload.excluded)),payload.match_mode))
+            c=cn.execute('INSERT INTO tasks(title,description,required,preferred,excluded,match_mode,description_leads,term_modes) VALUES(?,?,?,?,?,?,?,?)',
+                (payload.title.strip(),payload.description,dumps(split_terms(payload.required)),dumps(split_terms(payload.preferred)),dumps(split_terms(payload.excluded)),payload.match_mode,
+                 dumps(split_terms(payload.description_leads)) if payload.description_leads is not None else None,
+                 dumps(payload.term_modes)))
             return get_task(cn,c.lastrowid)
 
     @app.get('/api/tasks/{task_id}')
@@ -238,12 +259,14 @@ def create_app(data_dir:Path|None=None):
     @app.patch('/api/tasks/{task_id}')
     def patch_task(task_id:int, payload:TaskPatch):
         with store.connect() as cn:
-            get_task(cn,task_id)
+            before=get_task(cn,task_id)
             edits=payload.model_dump(exclude_unset=True)
             fields=[]; values=[]
             for key,val in edits.items():
-                if key in ('required','preferred','excluded'):
+                if key in ('required','preferred','excluded') or (key=='description_leads' and val is not None):
                     val=dumps(split_terms(val))
+                if key=='term_modes':
+                    val=dumps(val)
                 if key=='archived':
                     val=int(val)
                 if key=='title' and not str(val or '').strip():
@@ -251,7 +274,25 @@ def create_app(data_dir:Path|None=None):
                 fields.append(f'{key}=?'); values.append(val)
             if fields:
                 cn.execute(f'UPDATE tasks SET {", ".join(fields)} WHERE id=?',(*values,task_id))
+                after=get_task(cn,task_id)
+                if task_audit_snapshot(before)!=task_audit_snapshot(after):
+                    cn.execute("""INSERT INTO task_events(task_id,action,previous_json,next_json)
+                        VALUES(?,?,?,?)""",(task_id,'task_edit',
+                        dumps(task_audit_snapshot(before)),dumps(task_audit_snapshot(after))))
             return get_task(cn,task_id)
+
+    @app.get('/api/tasks/{task_id}/changes')
+    def task_changes(task_id:int):
+        with store.connect() as cn:
+            get_task(cn,task_id)
+            events=[]
+            for row in cn.execute("""SELECT id,action,previous_json,next_json,occurred_at
+                FROM task_events WHERE task_id=? ORDER BY id DESC LIMIT 200""",(task_id,)):
+                event=dict(row)
+                event['previous']=json.loads(event.pop('previous_json'))
+                event['next']=json.loads(event.pop('next_json'))
+                events.append(event)
+            return events
 
     @app.delete('/api/tasks/{task_id}')
     def delete_archived_task(task_id:int, payload:TaskDelete):
@@ -272,6 +313,7 @@ def create_app(data_dir:Path|None=None):
             cn.execute('DELETE FROM review_events WHERE task_id=?',(task_id,))
             cn.execute('DELETE FROM imports WHERE task_id=?',(task_id,))
             cn.execute('DELETE FROM redaction_events WHERE task_id=?',(task_id,))
+            cn.execute('DELETE FROM task_events WHERE task_id=?',(task_id,))
             cn.execute('DELETE FROM resumes WHERE task_id=?',(task_id,))
             cn.execute('DELETE FROM tasks WHERE id=?',(task_id,))
         failed=[]
@@ -416,6 +458,22 @@ def create_app(data_dir:Path|None=None):
                 'SELECT id,filename,state,message,created_at FROM imports WHERE task_id=? ORDER BY id DESC LIMIT 300',
                 (task_id,))]
 
+    @app.get('/api/tasks/{task_id}/retention')
+    def retention_review(task_id:int, days:int=Query(365,ge=30,le=3650)):
+        """Preview old personal data; never expire or delete candidates automatically."""
+        with store.connect() as cn:
+            get_task(cn,task_id)
+            cutoff=f'-{days} days'
+            total=cn.execute("""SELECT COUNT(*) FROM resumes
+                WHERE task_id=? AND imported_at < datetime('now',?)""",
+                (task_id,cutoff)).fetchone()[0]
+            records=[dict(row) for row in cn.execute("""SELECT id,filename,name,imported_at
+                FROM resumes WHERE task_id=? AND imported_at < datetime('now',?)
+                ORDER BY imported_at ASC,id ASC LIMIT 100""",(task_id,cutoff))]
+            return {'task_id':task_id,'days':days,'due_count':total,'shown':len(records),
+                    'candidates':records,'manual_review_required':True,
+                    'note':'仅供组织依据合法保留期限审核，系统不会自动删除；外部加密备份需另行管理。'}
+
     @app.get('/api/tasks/{task_id}/resumes')
     def list_resumes(task_id:int):
         with store.connect() as cn:
@@ -478,6 +536,78 @@ def create_app(data_dir:Path|None=None):
                 out.append(d)
             return out
 
+    @app.post('/api/tasks/{task_id}/runs/{run_id}/restore-criteria')
+    def restore_round_criteria(task_id:int,run_id:int):
+        """Restore job settings from an immutable round, keeping an audit event."""
+        with store.connect() as cn:
+            current=get_task(cn,task_id)
+            run=get_run(cn,task_id,run_id)
+            snapshot=json.loads(run['criteria_json'])
+            prior=task_audit_snapshot(current)
+            derived=set(snapshot.get('description_leads',[])+snapshot.get('supplementary_leads',[]))
+            manual_preferred=snapshot.get('task_preferred',
+                                           [term for term in snapshot.get('preferred',[])
+                                            if term not in derived])
+            updates={
+                'required':snapshot.get('required',[]),
+                'preferred':manual_preferred,
+                'excluded':snapshot.get('excluded',[]),
+                'match_mode':snapshot.get('match_mode','aliases'),
+                'description_leads':snapshot.get('description_leads',[]),
+                'term_modes':snapshot.get('term_modes',{}),
+            }
+            cn.execute("""UPDATE tasks SET required=?,preferred=?,excluded=?,match_mode=?,
+                description_leads=?,term_modes=? WHERE id=?""",
+                (dumps(updates['required']),dumps(updates['preferred']),
+                 dumps(updates['excluded']),updates['match_mode'],
+                 dumps(updates['description_leads']),dumps(updates['term_modes']),task_id))
+            restored=get_task(cn,task_id)
+            if task_audit_snapshot(restored)!=prior:
+                cn.execute("""INSERT INTO task_events(task_id,action,previous_json,next_json)
+                    VALUES(?,?,?,?)""",(task_id,f'restore_round:{run_id}',
+                                        dumps(prior),dumps(task_audit_snapshot(restored))))
+            return {'task':restored,'restored_from':run_id,
+                    'note':'岗位条件已恢复；既有筛选轮次和结果不受影响。'}
+
+    @app.get('/api/tasks/{task_id}/runs/compare')
+    def compare_runs(task_id:int, left:int, right:int):
+        """Compare immutable evaluation snapshots, not mutable HR review labels."""
+        with store.connect() as cn:
+            first=get_run(cn,task_id,left)
+            second=get_run(cn,task_id,right)
+            def collect(run_id):
+                result={}
+                for row in cn.execute("""SELECT r.id,r.name,r.filename,e.results_json
+                    FROM evaluations e JOIN resumes r ON r.id=e.resume_id
+                    WHERE r.task_id=? AND e.run_id=?""",(task_id,run_id)):
+                    evidence=json.loads(row['results_json'])
+                    result[row['id']]={'resume_id':row['id'],'name':row['name'],
+                        'filename':row['filename'],'group':evidence['group'],
+                        'matched_count':evidence['matched_count']}
+                return result
+            a=collect(left); b=collect(right)
+            def label(row):
+                return {key:row[key] for key in ('resume_id','name','filename','group','matched_count')}
+            common=set(a)&set(b)
+            changed=[{'resume_id':key,'name':a[key]['name'],
+                     'before':a[key]['group'],'after':b[key]['group']}
+                     for key in sorted(common)
+                     if a[key]['group']!=b[key]['group']]
+            return {
+                'left':{'id':left,'name':first['name'],'criteria':json.loads(first['criteria_json']),
+                        'total':len(a)},
+                'right':{'id':right,'name':second['name'],'criteria':json.loads(second['criteria_json']),
+                         'total':len(b)},
+                'same':len(common),
+                'added_count':len(set(b)-set(a)),
+                'removed_count':len(set(a)-set(b)),
+                'changed_group_count':len(changed),
+                'added':[label(b[key]) for key in sorted(set(b)-set(a))[:100]],
+                'removed':[label(a[key]) for key in sorted(set(a)-set(b))[:100]],
+                'changed':changed[:100],
+                'note':'仅比较两轮保存的文字证据分组；当前人工审核状态并不属于历史快照。'
+            }
+
     @app.post('/api/tasks/{task_id}/runs')
     def new_run(task_id:int, payload:RunCreate):
         with store.connect() as cn:
@@ -504,18 +634,20 @@ def create_app(data_dir:Path|None=None):
                     ids.append(record['resume_id'])
             terms=task['required']+task['preferred']+task['excluded']
             new=suggest_conditions(payload.query)
-            additional=[x for x in new['required']+new['preferred'] if x not in terms]
-            # A free-form follow-up must be searchable even without a term in our
-            # small vocabulary. It remains a *soft* criterion awaiting HR review.
-            if payload.query.strip() and not additional:
-                additional=[payload.query.strip()[:180]]
+            additional=[x for x in new['required']+new['preferred']+description_clues(payload.query) if x not in terms]
+            # Free-text descriptions are interpreted as bounded, optional evidence leads;
+            # never require an exact match on the entire arbitrary paragraph.
             # Added query terms are soft evidence signals, never new hard criteria automatically.
             required=task['required']
-            preferred=list(dict.fromkeys(task['preferred']+additional))
+            description_leads=(task['description_leads'] if task['description_leads'] is not None
+                               else description_clues(task['description']))
+            preferred=list(dict.fromkeys(task['preferred']+description_leads+additional))
             excluded=task['excluded']
             match_mode=task['match_mode']
             matcher=semantic.get_matcher()
             criteria={'required':required,'preferred':preferred,'excluded':excluded,'match_mode':match_mode,'query':payload.query,
+                      'description_leads':description_leads, 'supplementary_leads':additional,
+                      'task_preferred':task['preferred'], 'term_modes':task['term_modes'],
                       'engine':'hybrid_retrieval_v0.2' if matcher else 'local_evidence_v1',
                       'semantic':semantic.status(), 'source_filter':payload.source_filter,
                       'retrieval':'bm25_lexical_v1'}
@@ -539,11 +671,56 @@ def create_app(data_dir:Path|None=None):
             query_text=' '.join([task['description'], *required, *preferred, payload.query])
             relevance=bm25_relevance(query_text, corpus)
             for resume,pages,relevance_score in zip(source,parsed,relevance):
-                score=evaluate(required,preferred,pages,semantic_matcher=matcher,excluded=excluded,match_mode=match_mode)
+                score=evaluate(required,preferred,pages,semantic_matcher=matcher,excluded=excluded,
+                               match_mode=match_mode,term_modes=task['term_modes'])
+                # Capture the human review state at round creation, independently
+                # from the up-to-date review overlay returned to the results UI.
+                prior=cn.execute('SELECT status,note FROM reviews WHERE task_id=? AND resume_id=?',
+                                 (task_id,resume['id'])).fetchone()
+                score['review_at_run']={'status':prior['status'],'note':prior['note']} if prior else {'status':'未审核','note':''}
                 score['text_relevance']=relevance_score
                 score['sort_key']=round(score['sort_key'] + relevance_score*0.3,5)
                 cn.execute('INSERT INTO evaluations(run_id,resume_id,results_json) VALUES(?,?,?)',(run_id,resume['id'],dumps(score)))
             return {'id':run_id,'name':payload.name,'candidate_count':len(source),'criteria':criteria}
+
+    @app.post('/api/tasks/{task_id}/runs/{run_id}/replay')
+    def replay_run(task_id:int,run_id:int):
+        """Reapply a historical round's criteria against currently stored resumes.
+
+        Does not mutate old snapshots or silently reintroduce erased candidates.
+        """
+        with store.connect() as cn:
+            old=get_run(cn,task_id,run_id)
+            original=json.loads(old['criteria_json'])
+            required=original.get('required',[])
+            preferred=original.get('preferred',[])
+            excluded=original.get('excluded',[])
+            mode=original.get('match_mode','aliases')
+            term_modes=original.get('term_modes',{})
+            criteria={**original,'replay_of':run_id,'source_filter':'全部',
+                      'replay_scope':'all_current_resumes'}
+            name=('复用 · '+old['name'])[:100]
+            created=cn.execute("""INSERT INTO runs(task_id,parent_id,name,query,scope,criteria_json)
+                VALUES(?,?,?,?,?,?)""",(task_id,run_id,name,old['query'],'all',dumps(criteria)))
+            source=cn.execute('SELECT id,pages_json FROM resumes WHERE task_id=?',
+                              (task_id,)).fetchall()
+            pages=[json.loads(row['pages_json']) for row in source]
+            corpus=['\n'.join(p.get('text','') for p in parts)[:12000] for parts in pages]
+            scores=bm25_relevance(' '.join([*required,*preferred,old['query']]),corpus)
+            matcher=semantic.get_matcher()
+            for row,parts,relevance_score in zip(source,pages,scores):
+                evaluation=evaluate(required,preferred,parts,semantic_matcher=matcher,
+                                    excluded=excluded,match_mode=mode,term_modes=term_modes)
+                prior=cn.execute('SELECT status,note FROM reviews WHERE task_id=? AND resume_id=?',
+                                 (task_id,row['id'])).fetchone()
+                evaluation['review_at_run']=({'status':prior['status'],'note':prior['note']}
+                                            if prior else {'status':'未审核','note':''})
+                evaluation['text_relevance']=relevance_score
+                evaluation['sort_key']=round(evaluation['sort_key']+relevance_score*0.3,5)
+                cn.execute('INSERT INTO evaluations(run_id,resume_id,results_json) VALUES(?,?,?)',
+                           (created.lastrowid,row['id'],dumps(evaluation)))
+            return {'id':created.lastrowid,'name':name,
+                    'candidate_count':len(source),'criteria':criteria}
 
     @app.get('/api/tasks/{task_id}/runs/{run_id}/results')
     def results(task_id:int,run_id:int):
@@ -561,6 +738,7 @@ def create_app(data_dir:Path|None=None):
                 d['ocr_pages']=sum(p.get('source')=='ocr' for p in page_records)
                 d['parse_warnings']=sum(bool(p.get('warning')) for p in page_records)
                 d['evaluation']=json.loads(d.pop('results_json'))
+                d['review_at_run']=d['evaluation'].get('review_at_run')
                 d['review_status']=d['review_status'] or '未审核'
                 d['review_note']=d['review_note'] or ''
                 records.append(d)

@@ -10,6 +10,14 @@ on:
       - packaging/huiyan-ai.iss
       - .github/workflows/windows-ai.yml
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'tests/**'
+      - 'desktop.py'
+      - 'packaging/huiyan-ai.iss'
+      - '.github/workflows/windows-ai.yml'
 jobs:
   windows-build:
     runs-on: windows-latest
@@ -58,7 +66,7 @@ jobs:
       - name: Run API tests on Windows
         run: |
           pip install reportlab
-          python -m pytest -q tests/test_api.py tests/test_profile_api.py tests/test_format_ingestion.py tests/test_backup.py tests/test_backup_api.py tests/test_restore_profiles.py tests/test_candidate_erasure.py tests/test_upgrade_legacy.py
+          python -m pytest -q tests/test_api.py tests/test_profile_api.py tests/test_format_ingestion.py tests/test_backup.py tests/test_backup_api.py tests/test_restore_profiles.py tests/test_description_clue_edits.py tests/test_round_history.py tests/test_task_change_history.py tests/test_retention_diagnostics.py tests/test_candidate_erasure.py tests/test_upgrade_legacy.py
       - name: Create portable EXE
         shell: pwsh
         run: |
@@ -149,6 +157,18 @@ jobs:
           $env:HF_HUB_OFFLINE = '1'
           $app = Start-Process -FilePath $installedExe -Wait -PassThru
           if ($app.ExitCode -ne 0) { throw "Installed EXE smoke failed with $($app.ExitCode)" }
+      - name: Verify silent uninstall preserves local HR data
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP 'Huiyan-Installer-Test'
+          $executable = Join-Path $target 'Huiyan.exe'
+          $uninstaller = Get-ChildItem -Path $target -Filter 'unins*.exe' -ErrorAction Stop | Select-Object -First 1
+          if (-not $uninstaller) { throw 'Installer did not provide an uninstaller' }
+          $removed = Start-Process -FilePath $uninstaller.FullName -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' -Wait -PassThru
+          if ($removed.ExitCode -ne 0) { throw "Uninstall failed: $($removed.ExitCode)" }
+          if (Test-Path $executable) { throw 'Uninstaller left the EXE installed' }
+          $database = Join-Path $env:RUNNER_TEMP 'huiyan-installed-smoke/huiyan.sqlite3'
+          if (-not (Test-Path $database)) { throw 'Uninstall unexpectedly removed HR local data' }
       - name: Generate installer checksums and build provenance
         shell: pwsh
         run: |

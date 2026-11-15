@@ -10,7 +10,9 @@ CREATE TABLE IF NOT EXISTS tasks (
  id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL,
  description TEXT NOT NULL DEFAULT '', required TEXT NOT NULL DEFAULT '[]', preferred TEXT NOT NULL DEFAULT '[]',
  created_at TEXT NOT NULL DEFAULT (datetime('now')), archived INTEGER NOT NULL DEFAULT 0,
- excluded TEXT NOT NULL DEFAULT '[]', match_mode TEXT NOT NULL DEFAULT 'aliases'
+ excluded TEXT NOT NULL DEFAULT '[]', match_mode TEXT NOT NULL DEFAULT 'aliases',
+ description_leads TEXT DEFAULT NULL,
+ term_modes TEXT NOT NULL DEFAULT '{}'
 );
 CREATE TABLE IF NOT EXISTS resumes (
  id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL REFERENCES tasks(id),
@@ -41,6 +43,15 @@ CREATE TABLE IF NOT EXISTS reviews (
  note TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT (datetime('now')),
  UNIQUE(task_id,resume_id)
 );
+CREATE TABLE IF NOT EXISTS task_events (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+ action TEXT NOT NULL,
+ previous_json TEXT NOT NULL DEFAULT '{}',
+ next_json TEXT NOT NULL DEFAULT '{}',
+ occurred_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id,id);
 CREATE TABLE IF NOT EXISTS review_events (
  id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, resume_id INTEGER NOT NULL,
  status TEXT NOT NULL, note TEXT NOT NULL, occurred_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -72,6 +83,10 @@ class Store:
                 cn.execute("ALTER TABLE tasks ADD COLUMN excluded TEXT NOT NULL DEFAULT '[]'")
             if 'match_mode' not in existing:
                 cn.execute("ALTER TABLE tasks ADD COLUMN match_mode TEXT NOT NULL DEFAULT 'aliases'")
+            if 'description_leads' not in existing:
+                cn.execute("ALTER TABLE tasks ADD COLUMN description_leads TEXT DEFAULT NULL")
+            if 'term_modes' not in existing:
+                cn.execute("ALTER TABLE tasks ADD COLUMN term_modes TEXT NOT NULL DEFAULT '{}'")
 
     @contextmanager
     def connect(self):

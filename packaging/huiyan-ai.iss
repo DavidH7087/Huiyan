@@ -1,5 +1,5 @@
 ﻿#define MyAppName "慧眼"
-#define MyAppVersion "0.8.0-AI-preview"
+#define MyAppVersion "0.9.0-preview"
 #define MyAppExe "Huiyan.exe"
 
 [Setup]
@@ -13,7 +13,7 @@ PrivilegesRequired=lowest
 UninstallDisplayName={#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExe}
 OutputDir=..\dist\installer
-OutputBaseFilename=Huiyan-Setup-0.8.0-AI-preview
+OutputBaseFilename=Huiyan-Setup-0.9.0-AI-preview
 Compression=zip
 SolidCompression=no
 WizardStyle=modern

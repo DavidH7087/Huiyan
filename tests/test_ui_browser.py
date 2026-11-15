@@ -87,6 +87,45 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
                 output = ROOT / 'tests' / 'artifacts'
                 output.mkdir(parents=True, exist_ok=True)
                 page.screenshot(path=str(output / 'huiyan-results.png'), full_page=True)
+                # Phase 1: HR can edit the automatically extracted soft clues.
+                page.locator('#editCriteria').click()
+                page.locator('#descClues').fill('制造业')
+                page.locator('#createTask').click()
+                page.get_by_text('招聘要求已更新', exact=False).wait_for()
+                # Phase 2: actual multi-round comparison and reusable conditions.
+                page.locator('#followupQuery').fill('最好熟悉渠道拓展')
+                page.locator('#screenAgain').click()
+                page.locator('[data-run]').nth(1).wait_for()
+                page.locator('[data-compare]').nth(1).click()
+                page.get_by_role('heading', name='筛选轮次对比').wait_for()
+                page.locator('#closeCompare').click()
+                page.once('dialog',lambda dialog:dialog.accept())
+                page.locator('[data-replay]').nth(1).click()
+                page.get_by_text('已按历史条件建立新轮次').wait_for()
+                page.once('dialog', lambda dialog:dialog.accept())
+                page.locator('[data-restore-criteria]').last.click()
+                page.get_by_text('岗位条件已恢复',exact=False).wait_for()
+                page.locator('#editCriteria').click()
+                assert '客户开发' in page.locator('#mustTerms').input_value()
+                page.locator('#createTask').click()
+                page.locator('#uploadMore').wait_for(state='visible')
+                # Phase 3: exercise the *drop* path rather than file selection only.
+                page.locator('#uploadMore').click()
+                page.locator('#resumeDropzone').wait_for(state='visible')
+                page.evaluate("""() => {
+                    const data = new DataTransfer();
+                    data.items.add(new File(
+                        ['\\u5f20\\u56db\\n\\u72ec\\u7acb\\u8d1f\\u8d23\\u5ba2\\u6237\\u5f00\\u53d1'],
+                        'dragged-resume.txt', {type: 'text/plain'}
+                    ));
+                    const zone = document.getElementById('resumeDropzone');
+                    zone.dispatchEvent(new DragEvent('dragover',{bubbles:true,dataTransfer:data}));
+                    zone.dispatchEvent(new DragEvent('drop',{bubbles:true,dataTransfer:data}));
+                }""")
+                page.get_by_text('已选择 1 个文件').wait_for()
+                page.locator('#uploadFiles').click()
+                page.get_by_text('此任务已有').wait_for()
+                page.locator('#startScreening').click()
                 page.locator('#openHistory').click()
                 page.get_by_text('筛选轮次').first.wait_for()
                 assert page.locator('[data-run]').count() >= 1
@@ -104,7 +143,7 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
                 page.locator('#restorePassword').fill('a-long-synthetic-test-password')
                 page.locator('#restoreConfirm').fill('恢复')
                 page.locator('#restoreBackup').click()
-                page.get_by_text('已验证 3 份原始简历',exact=False).wait_for(timeout=45000)
+                page.get_by_text('已验证 4 份原始简历',exact=False).wait_for(timeout=45000)
                 assert (tmp_path / 'data' / 'huiyan.sqlite3').exists()
                 assert len(list(tmp_path.glob('restored-*'))) == 1
                 page.screenshot(path=str(output / 'huiyan-recovery.png'),full_page=True)
