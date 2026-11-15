@@ -162,3 +162,7 @@ Windows 程序每次启动生成随机会话令牌，通过本地 WebView2 引�
 ## Phase 4E：离线 Windows OCR 随包部署
 
 Windows 构建会将 Tesseract OCR 与简体中文 / 英文语言数据打进安装器和便携包，扫描件识别无需云端 API。安装包完成前必须通过 Windows CI 的三项冒烟检查：源码启动、打包 EXE 启动、安装后 EXE 启动，而且三处都要求 `ocr.state=ready`。当前为 **v0.5.1-preview 候选**，请以对应工作流的通过结果为准，不代表真实简历识别准确性已经验收。
+
+## Phase 7C：内置中文语义模型的 Windows AI 增强预览版
+
+专用 `Huiyan Windows AI Model Edition Build` 工作流将 FastEmbed 中文 BGE-small 模型与 OCR 一起安装，测试离线推理、EXE 启动与静默安装。与轻量版分开构建，只有 CI 通过才视为可用。详见 [`docs/PHASE7C_REPORT.md`](docs/PHASE7C_REPORT.md)。

@@ -39,6 +39,11 @@ def run() -> int:
     os.environ['HUIYAN_DATA_DIR'] = str(directory)
     os.environ['HUIYAN_DESKTOP_MODE'] = '1'
     os.environ['HUIYAN_SESSION_TOKEN'] = secrets.token_urlsafe(32)
+    # A packaged ONNX model lives next to the AI edition executable.
+    if getattr(sys, 'frozen', False) and not os.getenv('HUIYAN_FASTEMBED_CACHE_DIR'):
+        bundle = Path(sys.executable).resolve().parent / 'models' / 'fastembed'
+        if bundle.is_dir():
+            os.environ['HUIYAN_FASTEMBED_CACHE_DIR'] = str(bundle)
     # Binding to 127.0.0.1 (not all interfaces) is mandatory for desktop use.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(('127.0.0.1', 0))
@@ -69,6 +74,15 @@ def run() -> int:
                 ocr_state = json.load(response).get('ocr', {}).get('state')
             if ocr_state != 'ready':
                 raise RuntimeError('Windows 便携版 OCR 未就绪：' + str(ocr_state))
+        if os.getenv('HUIYAN_DESKTOP_SMOKE_REQUIRE_SEMANTIC') == '1':
+            from backend.semantic import LocalSemanticService
+            probe = LocalSemanticService()
+            matcher = probe.get_matcher()
+            if matcher is None:
+                raise RuntimeError('AI edition cannot load bundled Chinese ONNX model')
+            result = matcher.encoder.encode(['招聘客户开发经历', '长期维护工业制造企业采购关系'])
+            if len(result) != 2 or len(result[0]) != 512:
+                raise RuntimeError('AI edition returned invalid embedding dimensions')
         # CI verifies the *bundled executable* without opening a GUI.
         if os.getenv('HUIYAN_DESKTOP_SMOKE') == '1':
             return 0

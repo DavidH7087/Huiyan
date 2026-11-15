@@ -1,0 +1,3 @@
+# Phase 7C · Windows 中文 AI 增强版
+
+新增独立 GitHub Actions 构建，不影响轻量版。Windows runner 在构建时显式下载公开中文 BGE-small-zh-v1.5 ONNX 模型（约 90MB，512维，MIT），然后将 FastEmbed、CPU ONNX Runtime、模型权重和中英文 OCR 一起打进便携 EXE 与 Inno Setup 安装器。\n\nCI 需要在网络禁用模式下运行中文模型，并验证打包 EXE 以及静默安装后的 EXE 能正常离线生成 512 维向量，才允许上传测试产物。输出另附 SHA-256 校验、依赖版本和 Git 提交号。\n\n**内部预览，不是正式商用发行。** 仍需实际 Windows 11 图形界面验收、企业隐私评估、代码签名、第三方许可证及真实招聘质量评测。语义检索仅给 HR 提供待核对的原文线索，不能自动判定候选人资格。\n
