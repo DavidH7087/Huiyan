@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from backend.app import create_app
 from backend.engine import (
-    description_clues, dedupe_conditions, evaluate, suggest_conditions,
+    description_clues, dedupe_conditions, expand_description_leads, evaluate, suggest_conditions,
 )
 from backend.profile import extract_profile, PROFILE_VERSION
 from backend.semantic import SemanticMatcher
@@ -67,7 +67,8 @@ def test_distinct_textual_skills_count_once_even_with_legacy_clues():
     clean_required, clean_preferred = dedupe_conditions(required, preferred)
     assert clean_required == required
     assert len(clean_preferred) == 3
-    out = evaluate(required, preferred, [{
+    # The API cleans legacy auto-generated hints before evaluating a new round.
+    out = evaluate(required, expand_description_leads(preferred), [{
         'page':1,'source':'txt',
         'text':'独立负责B2B销售、客户开发、制造业、大客户管理和渠道拓展。'
     }])
