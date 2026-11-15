@@ -7,6 +7,7 @@ on:
       - backend/semantic.py
       - desktop.py
       - requirements-desktop-ai.txt
+      - packaging/huiyan-ai.iss
       - .github/workflows/windows-ai.yml
   workflow_dispatch:
 jobs:
