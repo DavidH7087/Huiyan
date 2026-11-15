@@ -48,26 +48,95 @@ def alias_options(term: str) -> list[str]:
     return list(dict.fromkeys(matches))
 
 
+def _is_recruiting_skill(clause: str) -> bool:
+    """Distinguish 'we are recruiting a salesperson' from hiring expertise."""
+    return bool(re.search(
+        r"(?:负责|从事|主导|组织|参与|具备|拥有|熟悉|开展).{0,8}招聘"
+        r"|招聘(?:专员|经理|经验|工作|渠道|流程|管理|项目|体系)"
+        r"|(?:校园|社会|人才|员工|人员)招聘|人力资源招聘",
+        clause, re.I))
+
+
+def _known_skills(clause: str) -> list[str]:
+    found = []
+    for canonical, aliases in ALIASES.items():
+        if canonical == "招聘" and not _is_recruiting_skill(clause):
+            continue
+        if any(_contains_alias(clause, alias) for alias in (canonical, *aliases)):
+            found.append(canonical)
+    return found
+
+
+def _clean_requirement_clause(raw: str) -> str:
+    part = re.sub(r"【[^】]{0,60}】|（(?:功能|合成)?测试）", "", raw).strip()
+    # Strip JD instructions; never turn '招聘' itself into a skill.
+    for _ in range(5):
+        changed = re.sub(
+            r"^(?:本岗位|岗位要求|岗位描述|职位要求|任职要求|现|正在|计划|拟|招聘|招募|"
+            r"希望|寻找|需要|必须|优先|考虑|最好|最好有|优先考虑|最好熟悉|"
+            r"具有|具备|拥有|有|熟悉|掌握|擅长|能够|可以|独立|相关|并且|和|及|的)\s*",
+            "", part).strip(" ：:")
+        if changed == part:
+            break
+        part = changed
+    part = re.sub(
+        r"(?:的候选人|的应聘者|的人选|相关工作经验|工作经验|相关经验|经验|能力|经历|背景|方面)$",
+        "", part).strip()
+    return part
+
+
 def suggest_conditions(description: str) -> dict:
-    """Small deterministic convenience parser; the UI requires human confirmation."""
+    """Suggest candidate skills, excluding hiring instructions and disclaimers."""
     required: list[str] = []
     preferred: list[str] = []
-    clauses = re.split(r"[。；;\n，,]+", description or "")
+    clauses = re.split(r"[。；;\n，,、]+", description or "")
     for raw in clauses:
-        clause = raw.strip()
-        if not clause:
-            continue
-        if any(x in clause for x in ("不限于", "不要求", "不限制", "无需")):
+        clause = re.sub(r"【[^】]{0,60}】", "", raw).strip()
+        if not clause or any(x in clause for x in ("不限于", "不要求", "不限制", "无需", "不考虑")):
             continue
         is_preferred = any(x in clause for x in ("最好", "优先", "加分", "更好", "期望"))
-        for canonical, synonyms in ALIASES.items():
-            if any(_contains_alias(clause, synonym) for synonym in (canonical, *synonyms)):
-                target = preferred if is_preferred else required
-                if canonical not in target:
-                    target.append(canonical)
-    # '最好有制造业...不限定润滑油行业' can leave an unwanted must
+        for canonical in _known_skills(clause):
+            target = preferred if is_preferred else required
+            if canonical not in target:
+                target.append(canonical)
     required = [x for x in required if x not in preferred]
-    return {"required": required, "preferred": preferred, "disclaimer": "自动识别仅提供初稿，请核实并修改条件后再筛选。"}
+    return {"required": required, "preferred": preferred,
+            "disclaimer": "自动识别仅提供初稿，请核实并修改条件后再筛选。"}
+
+
+def _condition_key(term: str) -> str:
+    """Deduplicate human terms against cleaned description/synonym variants."""
+    plain = _clean_requirement_clause(term)
+    matches = _known_skills(plain)
+    if len(matches) == 1:
+        return normalise(matches[0])
+    return normalise(plain or term)
+
+
+def dedupe_conditions(required: list[str], preferred: list[str]) -> tuple[list[str], list[str]]:
+    """A required term wins over a duplicate optional clue; never double score."""
+    seen = set()
+    outputs = ([], [])
+    for source, target in ((required, outputs[0]), (preferred, outputs[1])):
+        for term in source:
+            term = term.strip()
+            key = _condition_key(term)
+            if term and key and key not in seen:
+                target.append(term)
+                seen.add(key)
+    return outputs
+
+
+def expand_description_leads(leads: list[str]) -> list[str]:
+    """Normalise legacy prompts to atomic skills without mutating stored history."""
+    out: list[str] = []
+    for clue in leads:
+        cleaned = _clean_requirement_clause(clue)
+        if not cleaned:
+            continue
+        matched = _known_skills(cleaned)
+        out.extend(matched or [cleaned])
+    return dedupe_conditions([], out)[1]
 
 
 def _looks_negated(source: str, alias: str) -> bool:
@@ -134,48 +203,51 @@ def find_evidence(term: str, pages: list[dict], match_mode: str = 'aliases') -> 
 
 
 def description_clues(description: str, limit: int = 8) -> list[str]:
-    """Extract conservative *search leads* from free-form Chinese requirements.
-
-    This is deliberately not an LLM or a reliable interpretation of job duties.
-    No lead becomes a mandatory condition; HR can inspect the source evidence.
-    """
+    """Extract atomic optional clues, avoiding redundant instruction phrases."""
     if not description or not description.strip():
         return []
-    leads: list[str] = []
-    # Separate independent requirements, including common list punctuation.
-    clauses = re.split(r"[。！？!?；;\n，,、]+", description)
-    stop_prefixes = (
-        "招聘", "招募", "寻找", "需要", "希望", "要求", "候选人", "应聘者",
-        "最好", "优先", "具备", "拥有", "具有", "有", "熟悉", "掌握",
-        "能够", "可以", "擅长", "负责", "独立", "相关", "一定的",
-    )
-    for raw in clauses:
-        part = raw.strip().strip("：: ")
-        if not part or any(x in part for x in ("不要求", "无需", "不限", "不限制", "不考虑")):
+    out: list[str] = []
+    for raw in re.split(r"[。！？!?；;\n，,、]+", description):
+        clause = re.sub(r"【[^】]{0,60}】", "", raw).strip()
+        if not clause or any(x in clause for x in ("不要求", "无需", "不限", "不限制", "不考虑")):
             continue
-        # Known occupational vocabulary is already validated by HR in the UI.
-        for canonical, aliases in ALIASES.items():
-            if any(_contains_alias(part, item) for item in (canonical, *aliases)):
-                if canonical not in leads:
-                    leads.append(canonical)
-        candidate = part
-        for _ in range(4):
-            updated = re.sub(r"^(?:"+ "|".join(stop_prefixes) + r")", "", candidate).strip()
-            if updated == candidate:
-                break
-            candidate = updated
-        candidate = re.sub(r"(?:的候选人|的人选|相关经验|工作经验|经验|能力|背景|方面)$", "", candidate).strip()
-        if 2 <= len(candidate) <= 24 and not re.fullmatch(r"(?:人选|人才|经验|能力|工作|岗位|销售|技术)", candidate):
-            if candidate not in leads:
-                leads.append(candidate)
-        if len(leads) >= limit:
+        skills = _known_skills(clause)
+        candidate = skills or [_clean_requirement_clause(clause)]
+        for term in candidate:
+            if 2 <= len(term) <= 30 and term not in ("人选", "人才", "经验", "能力", "工作", "岗位"):
+                out.append(term)
+        if len(out) >= limit:
             break
-    return leads[:limit]
+    return dedupe_conditions([], out)[1][:limit]
+
+
+def _negative_semantic_excerpt(term: str, excerpt: str) -> bool:
+    """A denial must never be promoted into a positive dense-retrieval lead."""
+    # A semantic passage has no clause-level proof; when an experience denial
+    # appears, prefer conservative uncertainty over a false positive.
+    denial = ("没有", "没做过", "未曾", "未从事", "从未", "不具备",
+              "缺少", "缺乏", "尚无", "未涉及", "无相关", "未负责",
+              "无", "不熟悉", "未实际", "未独立", "不承担")
+    return any(marker in excerpt for marker in denial)
+
+
+def _offtopic_semantic_excerpt(term: str, excerpt: str) -> bool:
+    """Stop technical '开发' from looking like business customer acquisition."""
+    canonical = _condition_key(term)
+    if canonical == normalise("客户开发") or ("客户" in term and ("开发" in term or "拓展" in term)):
+        anchors = ("客户", "销售", "商务", "市场", "拓客", "渠道", "采购",
+                   "经销", "销售商", "分销", "企业业务", "B2B")
+        return not any(word.lower() in excerpt.lower() for word in anchors)
+    if canonical == normalise("B2B销售"):
+        return not any(word.lower() in excerpt.lower() for word in
+                       ("客户", "销售", "采购", "商务", "市场", "经销", "渠道", "B2B"))
+    return False
 
 
 def evaluate(required: list[str], preferred: list[str], pages: list[dict], semantic_matcher=None,
              excluded: list[str] | None = None, match_mode: str = 'aliases',
              term_modes: dict[str,str] | None = None) -> dict:
+    required, preferred = dedupe_conditions(required, preferred)
     checks=[]
     excluded=excluded or []
     for term, kind in [(x, "required") for x in required]+[(x, "preferred") for x in preferred]:
@@ -193,9 +265,19 @@ def evaluate(required: list[str], preferred: list[str], pages: list[dict], seman
         missing = [c['term'] for c in checks if c['kind']!='excluded' and not c['evidence']]
         hints = semantic_matcher.search_many(missing, pages) if missing else {}
         for check in checks:
-            if not check['evidence'] and check['term'] in hints:
-                check['semantic_hint'] = hints[check['term']]
-                check['state'] = '语义相关待核实'
+            if check['kind']=='excluded' or check['evidence'] or check['term'] not in hints:
+                continue
+            hint = hints[check['term']]
+            excerpt = str(hint.get('excerpt', ''))
+            if _negative_semantic_excerpt(check['term'], excerpt):
+                check['negative_evidence'] = hint
+                check['state'] = '明确否定表述待核实'
+                continue
+            if _offtopic_semantic_excerpt(check['term'], excerpt):
+                # A generic shared word ('开发') is not a recruiting lead.
+                continue
+            check['semantic_hint'] = hint
+            check['state'] = '语义相关待核实'
 
     positive_checks=[x for x in checks if x['kind']!='excluded']
     must=[x for x in positive_checks if x['kind']=='required']
