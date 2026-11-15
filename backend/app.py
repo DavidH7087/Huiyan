@@ -123,7 +123,7 @@ def create_app(data_dir:Path|None=None):
     store=Store(root)
     semantic=LocalSemanticService()
     ocr=LocalOcrService()
-    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.7.2-preview')
+    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.9.0-preview')
     if os.environ.get('HUIYAN_DESKTOP_MODE') == '1':
         if os.environ.get('HUIYAN_SESSION_TOKEN'):
             app.add_middleware(DesktopSessionGuard)
