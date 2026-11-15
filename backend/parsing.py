@@ -57,7 +57,26 @@ def _docx_textboxes(doc) -> list[str]:
                     seen.add(text)
     return result
 
+def _validate_docx_archive(content: bytes) -> None:
+    """Avoid expanding hostile, highly compressed Word files in memory."""
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        members = archive.infolist()
+        if len(members) > 1000:
+            raise ParseError('Word 内部文件数量过多，已拒绝导入')
+        total = 0
+        for item in members:
+            path = item.filename.replace('\\', '/')
+            if path.startswith('/') or '..' in path.split('/'):
+                raise ParseError('Word 包含不安全的内部文件路径')
+            if item.flag_bits & 1:
+                raise ParseError('Word 文档已加密，请先解除密码')
+            total += item.file_size
+            if total > MAX_ARCHIVE:
+                raise ParseError('Word 解压后内容超过 100 MB，已拒绝导入')
+
+
 def _docx_pages(content: bytes, ocr=None) -> list[dict]:
+    _validate_docx_archive(content)
     doc = Document(io.BytesIO(content))
     lines = _docx_lines(doc)
     for section in doc.sections:
