@@ -3,7 +3,7 @@ const nav = [...document.querySelectorAll('[data-view]')];
 const state = {
   page:'home', tasks:[], task:null, runs:[], run:null, result:null, selected:null,
   description:'', descriptionLeads:[], required:[], preferred:[], excluded:[], matchMode:'aliases', title:'', editing:false, filter:'全部', busy:false, preview:null,
-  currentText:null, uploadSummary:null, importRecords:[], stagedFiles:[], retryFiles:[], historyCompare:null, retentionReport:null, reviewEvents:[], search:'', health:null, profileStatus:null, recoveryNotice:'',
+  currentText:null, uploadSummary:null, importRecords:[], stagedFiles:[], retryFiles:[], historyCompare:null, retentionReport:null, diagnostics:null, reviewEvents:[], search:'', health:null, profileStatus:null, recoveryNotice:'',
 };
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const e=escapeHtml;
@@ -103,7 +103,7 @@ function archivePage(){
     <div class="field"><label for="restoreFile">加密备份文件</label><input type="file" id="restoreFile" accept=".hyb,application/octet-stream"></div>
     <div class="actions" style="margin-top:12px"><input id="restorePassword" type="password" autocomplete="off" placeholder="原备份密码" aria-label="恢复密码" style="max-width:300px"><input id="restoreConfirm" placeholder="输入“恢复”确认" aria-label="恢复确认" style="max-width:180px"><button class="btn secondary" id="restoreBackup">验证并恢复（重启生效）</button></div>
     <p class="hint">仅在本机处理。密码不会保存；恢复需要额外磁盘空间。请不要把备份上传到公共 GitHub。</p>
-    ${pending}${notice}${switchBack}</div>`;
+    ${pending}${notice}${switchBack}</div><div class="surface subpanel"><h2>本地数据完整性</h2><p class="hint">仅核对本机数据库及原始简历文件数量，不会上传或删除资料。检查结果不包含候选人姓名。</p><button class="btn secondary small" id="checkIntegrity">检查本地数据</button>${state.diagnostics?`<p class="hint">${e(state.diagnostics.message)} · 简历 ${Number(state.diagnostics.resume_count||0)} · 缺失文件 ${Number(state.diagnostics.missing_files)} · 多余文件 ${Number(state.diagnostics.orphan_files)}</p>`:''}</div>`;
 }
 function previewPage(){if(!state.preview)return '<p>没有已打开的简历</p>';const p=state.preview.profile||{};const edu=(p.education_mentions||[]).map(x=>x.label).join('、')||'未明确提及';const skills=(p.skill_mentions||[]).map(x=>x.label).join('、')||'未明确提及';const years=(p.stated_experience_years||[]).join('、')||'未明确提及';const profileHtml=`<div class="surface" style="margin-bottom:15px"><h2>结构化信息（请核对原文）</h2><p class="hint">学历：${e(edu)} · 技能：${e(skills)} · 明确提及的工作年限：${e(years)}${p.stated_experience_years?.length?' 年':''}</p>${p.experience_years_conflict?'<p class="hint">⚠ 工作年限描述存在差异，请人工核实。</p>':''}${p.needs_source_review?'<p class="hint">⚠ 部分信息来自扫描件或解析存疑，请查看原件。</p>':''}<p class="hint">这些只是文字提及，不代表学历和技能已经验证。</p></div>`;return `<div class="toolbar"><button class="btn secondary" data-go="results">← 返回名单</button><a class="btn small" target="_blank" rel="noopener" href="/api/tasks/${state.task.id}/resumes/${state.preview.id}/original">打开原文件</a></div><div class="page-title"><h1>${e(state.preview.filename)}</h1><p>提取的纯文本，仅供核对。PDF 可通过原文件查看。</p></div>${profileHtml}${state.preview.pages.map(p=>`<div class="surface" style="margin-bottom:15px"><h2 style="margin-bottom:12px">第 ${Number(p.page)} 页</h2><div class="textview">${e(p.text)}</div></div>`).join('')}`}
 function render(){switch(state.page){case 'home':view.innerHTML=home();break;case 'confirm':view.innerHTML=confirm();break;case 'import':view.innerHTML=importPage();break;case 'tasks':view.innerHTML=allTasks();break;case 'archive':view.innerHTML=archivePage();break;case 'results':view.innerHTML=resultsPage();break;case 'preview':view.innerHTML=previewPage();break;default:view.innerHTML=home();}}
@@ -190,6 +190,7 @@ view.addEventListener('click',ev=>withBusy(async()=>{
     const task=state.task;state.editing=true;state.title=task.title;state.description=task.description;state.descriptionLeads=task.description_leads!==null?task.description_leads:(await post('/api/criteria/suggest',{description:task.description})).description_leads||[];state.required=[...task.required];state.preferred=[...task.preferred];state.excluded=[...task.excluded];state.matchMode=task.match_mode;setPage('confirm');return;
   }
   if(target.id==='closeCompare'){state.historyCompare=null;render();return;}
+  if(target.id==='checkIntegrity'){state.diagnostics=await api('/api/system/diagnostics');render();return;}
   if(target.id==='checkRetention'){const days=Number(el('retentionDays').value);state.retentionReport=await api(`/api/tasks/${state.task.id}/retention?days=${days}`);render();return;}
   if(target.id==='uploadMore'){state.uploadSummary=null;state.stagedFiles=[];state.retryFiles=[];state.task=await api(`/api/tasks/${state.task.id}`);state.importRecords=await api(`/api/tasks/${state.task.id}/imports`);setPage('import');return;}
   if(target.id==='uploadFiles'){await importSelectedFiles(state.stagedFiles);return;}
