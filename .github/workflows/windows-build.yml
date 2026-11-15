@@ -61,6 +61,7 @@ jobs:
         run: |
           $env:HUIYAN_DESKTOP_SMOKE = '1'
           $env:HUIYAN_DESKTOP_SMOKE_REQUIRE_OCR = '1'
+          $env:HUIYAN_DESKTOP_SMOKE_SCAN_PDF = '1'
           $env:HUIYAN_DATA_DIR = Join-Path $env:RUNNER_TEMP 'huiyan-smoke-source'
           python desktop.py
           if ($LASTEXITCODE -ne 0) { throw "Desktop source failed with $LASTEXITCODE" }
@@ -69,6 +70,7 @@ jobs:
         run: |
           $env:HUIYAN_DESKTOP_SMOKE = '1'
           $env:HUIYAN_DESKTOP_SMOKE_REQUIRE_OCR = '1'
+          $env:HUIYAN_DESKTOP_SMOKE_SCAN_PDF = '1'
           $env:HUIYAN_DATA_DIR = Join-Path $env:RUNNER_TEMP 'huiyan-smoke-exe'
           $env:HUIYAN_DESKTOP_SMOKE_LOG = Join-Path $env:RUNNER_TEMP 'huiyan-smoke-traceback.txt'
           $exe = (Resolve-Path '.\\dist\\Huiyan\\Huiyan.exe').Path
@@ -112,6 +114,7 @@ jobs:
           if (-not (Test-Path $installedExe)) { throw 'Installed EXE is missing' }
           $env:HUIYAN_DESKTOP_SMOKE = '1'
           $env:HUIYAN_DESKTOP_SMOKE_REQUIRE_OCR = '1'
+          $env:HUIYAN_DESKTOP_SMOKE_SCAN_PDF = '1'
           $env:HUIYAN_DATA_DIR = Join-Path $env:RUNNER_TEMP 'huiyan-installed-smoke'
           $app = Start-Process -FilePath $installedExe -Wait -PassThru
           if ($app.ExitCode -ne 0) { throw "Installed EXE smoke failed with $($app.ExitCode)" }
