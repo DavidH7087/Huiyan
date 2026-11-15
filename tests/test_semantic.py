@@ -63,7 +63,8 @@ def test_free_form_followup_kept_when_not_in_keyword_dictionary(tmp_path):
         c.post(f'/api/tasks/{task["id"]}/resumes', files=[('files', ('a.txt', '张三\n客户开发经验'.encode(), 'text/plain'))])
         query = '擅长跨部门推动复杂项目落地'
         run = c.post(f'/api/tasks/{task["id"]}/runs', json={'query':query}).json()
-        assert query in run['criteria']['preferred']
+        assert '跨部门推动复杂项目落地' in run['criteria']['preferred']
+        assert query == run['criteria']['query']  # Preserve original text in history.
         assert run['criteria']['engine'] == 'local_evidence_v1'
         assert c.get('/api/health').json()['semantic']['state'] == 'not_configured'
 
