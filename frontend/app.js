@@ -28,14 +28,14 @@ function taskCard(task){return `<button class="folder" data-task="${task.id}"><s
 function home(){return `<div class="home"><div class="hero"><h1>开始简历筛选</h1><p>输入岗位要求，添加简历，快速找到值得关注的人选。</p></div>
 <div class="entry"><textarea id="newDescription" placeholder="输入招聘要求，或直接粘贴岗位 JD……">${e(state.description)}</textarea><div class="entry-footer"><span class="subtle small">关键词与自然语言均可使用，下一步可修改条件</span><button id="describeNext" class="btn">下一步　→</button></div></div>
 <section class="recent"><div class="section-head"><h2>最近的任务</h2><button class="btn ghost small" data-go="archive">查看全部</button></div><div class="task-list">${state.tasks.slice(0,4).map(taskCard).join('')||'<div class="empty">还没有招聘任务。从上方创建第一个任务。</div>'}</div></section></div>`}
-function confirm(){return `<div class="page-title"><h1>确认筛选要求</h1><p>请检查以下条件是否正确。此版本采用本地文字证据检索，所有判断均需人工审核。</p></div>
+function confirm(){return `<div class="page-title"><h1>确认筛选要求</h1><p>关键词可选。即使只填写岗位描述，也可以开始筛选；描述仅提供待核实的文字线索，最终由 HR 判断。</p></div>
 <div class="surface"><div class="field"><label for="jobTitle">岗位或任务名称</label><input id="jobTitle" value="${e(state.title)}" placeholder="例如：销售经理招聘"></div>
 <div class="field"><label for="descConfirm">招聘需求</label><textarea id="descConfirm">${e(state.description)}</textarea></div>
-<div class="form-grid"><div class="field"><label for="mustTerms">必须具备</label><textarea id="mustTerms" style="min-height:110px">${e(state.required.join('、'))}</textarea><small>多个条件使用顿号分隔。未发现相关文字会标记为“需要确认”，不自动淘汰。</small></div>
+<div class="form-grid"><div class="field"><label for="mustTerms">必须具备</label><textarea id="mustTerms" style="min-height:110px">${e(state.required.join('、'))}</textarea><small>可留空。多个条件使用顿号分隔；未发现相关文字不会自动淘汰。</small></div>
 <div class="field"><label for="bonusTerms">优先考虑</label><textarea id="bonusTerms" style="min-height:110px">${e(state.preferred.join('、'))}</textarea><small>这些条件有相关经历则优先显示，但并非必要条件。</small></div></div>
 <div class="form-grid"><div class="field"><label for="excludedTerms">排除线索（选填）</label><textarea id="excludedTerms" style="min-height:72px" placeholder="例如：仅短期兼职、未独立负责">${e(state.excluded.join('、'))}</textarea><small>只标记需要 HR 复核的线索，系统不会自动淘汰或删除简历。不要使用年龄、性别等敏感个人特征。</small></div>
 <div class="field"><label for="keywordMode">关键词匹配方式</label><select id="keywordMode"><option value="aliases" ${state.matchMode==='aliases'?'selected':''}>智能同义（默认）</option><option value="exact" ${state.matchMode==='exact'?'selected':''}>精确文字（不扩展同义词）</option></select><small>仅影响关键词检索，不代表判断应聘者真实能力。</small></div></div>
-<div class="notice">系统对招聘描述的自动提取只是建议，尤其是“最好”“不限”等词，请在这里核对后再继续。</div>
+<div class="notice">自动提取只是建议。描述中的补充线索只辅助检索，不会自动成为必须条件；“最好”“不限”等表达请人工核对。</div>
 <div class="actions" style="margin-top:22px"><button class="btn secondary" data-go="home">返回修改</button><button class="btn" id="createTask">创建任务，添加简历 →</button></div></div>`}
 function importPage(){return `<div class="page-title"><h1>添加简历</h1><p>${e(state.task?.title||'')} · 可以一次添加多个文件或整个文件夹。</p></div>
 <div class="surface"><div class="dropzone"><strong>选择简历文件</strong><p>支持 PDF、DOCX、TXT、ZIP；${state.health?.ocr?.state==='ready' ? '扫描 PDF 和图片式 Word 将自动尝试本地 OCR 识别。' : '当前扫描件识别未就绪；文字 PDF 和普通 Word 不受影响。'}</p><input type="file" id="fileInput" multiple accept=".pdf,.docx,.txt,.zip"><p style="margin-top:16px">或者选择整个文件夹</p><input type="file" id="folderInput" multiple webkitdirectory directory></div>
@@ -44,7 +44,7 @@ ${state.uploadSummary?`<div class="notice">成功导入 ${state.uploadSummary.im
 ${state.uploadSummary?.issues?.length?`<div class="notice warn">${state.uploadSummary.issues.slice(0,6).map(x=>e(x.filename+': '+x.message)).join('<br>')}</div>`:''}
 ${state.uploadSummary?.warnings?.length?`<div class="notice warn">${state.uploadSummary.warnings.slice(0,8).map(x=>e(x.filename+': '+x.message)).join('<br>')}</div>`:''}
 <div class="divider"></div><div class="toolbar"><span>此任务已有 <strong>${state.task?.resume_count||0}</strong> 份简历</span><button class="btn" id="startScreening" ${(state.task?.resume_count||0)<1?'disabled':''}>开始筛选 →</button></div>
-<p class="hint">注：默认使用本地关键词和同义词检索。配置可选的本地语义模型后，可发现更多待核实的相关经历。筛选结果不能代替 HR 判断。</p></div>`}
+<p class="hint">注：无关键词也可根据岗位描述查找参考线索。可选本地语义模型能提供更多待核实内容；不能据此自动淘汰候选人。</p></div>`}
 function allTasks(archive=false){const records=archive==='all'?state.tasks:state.tasks.filter(t=>archive?t.archived:!t.archived);return `<div class="section-head"><div><h1>${archive?'招聘档案':'筛选任务'}</h1><p class="subtle">${archive?'所有岗位和筛选历史集中管理，支持归档与恢复。':'管理当前招聘、筛选结果和人工审核。'}</p></div><button class="btn" data-go="home">+ 新建任务</button></div><div class="task-list">${records.map(taskCard).join('')||'<div class="empty">这里暂时没有招聘任务。</div>'}</div>${!archive?`<div class="subpanel"><h2 style="margin-bottom:14px">已归档</h2><div class="task-list">${state.tasks.filter(t=>t.archived).map(taskCard).join('')||'<p class="subtle small">没有已归档的任务。</p>'}</div></div>`:''}`}
 function groupCounts(results){return ['优先查看','需要确认'].map(k=>({name:k,count:results.filter(r=>r.evaluation.group===k).length}));}
 function resultsPage(){const run=state.result?.run;const rows=state.result?.results||[];
@@ -110,7 +110,7 @@ view.addEventListener('click',ev=>withBusy(async()=>{
   if(target.id==='createTask'){
     state.title=el('jobTitle').value.trim();state.description=el('descConfirm').value.trim();state.required=terms(el('mustTerms').value);state.preferred=terms(el('bonusTerms').value);state.excluded=terms(el('excludedTerms').value);state.matchMode=el('keywordMode').value;
     if(!state.title){toast('请输入岗位或任务名称');return}
-    if(!state.required.length&&!state.preferred.length){toast('请至少确认一个筛选条件');return}
+    if(!state.description&&!state.required.length&&!state.preferred.length){toast('请填写招聘描述或至少一个筛选关键词');return}
     state.task=await post('/api/tasks',{title:state.title,description:state.description,required:state.required,preferred:state.preferred,excluded:state.excluded,match_mode:state.matchMode});
     state.task.resume_count=0;state.uploadSummary=null;await fetchTasks();setPage('import');toast('招聘任务已创建');return;
   }
