@@ -74,6 +74,26 @@ def run() -> int:
                 ocr_state = json.load(response).get('ocr', {}).get('state')
             if ocr_state != 'ready':
                 raise RuntimeError('Windows 便携版 OCR 未就绪：' + str(ocr_state))
+        if os.getenv('HUIYAN_DESKTOP_SMOKE_SCAN_PDF') == '1':
+            # Synthetic image-only PDF: check the packaged OCR binary can really
+            # render and recognise content, rather than only listing languages.
+            import io
+            from PIL import Image, ImageDraw, ImageFont
+            from backend.parsing import extract_pages
+            from backend.ocr import LocalOcrService
+            picture = Image.new('RGB', (1600, 600), 'white')
+            draw = ImageDraw.Draw(picture)
+            font_path = Path(os.getenv('WINDIR', 'C:/Windows')) / 'Fonts' / 'arial.ttf'
+            if not font_path.is_file():
+                raise RuntimeError('OCR smoke test font unavailable')
+            font = ImageFont.truetype(str(font_path), 90)
+            draw.text((100, 170), 'B2B SALES EXPERIENCE', fill='black', font=font)
+            buffer = io.BytesIO()
+            picture.save(buffer, format='PDF', resolution=180)
+            pages = extract_pages('synthetic-image-only.pdf', buffer.getvalue(), LocalOcrService())
+            text = ' '.join(p.get('text', '') for p in pages).upper()
+            if not any(p.get('source') == 'ocr' for p in pages) or 'SALES' not in text:
+                raise RuntimeError('Windows bundled OCR failed to recognise a synthetic scanned PDF')
         if os.getenv('HUIYAN_DESKTOP_SMOKE_REQUIRE_SEMANTIC') == '1':
             from backend.semantic import LocalSemanticService
             probe = LocalSemanticService()
