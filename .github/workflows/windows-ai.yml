@@ -10,6 +10,14 @@ on:
       - packaging/huiyan-ai.iss
       - .github/workflows/windows-ai.yml
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'tests/**'
+      - 'desktop.py'
+      - 'packaging/huiyan-ai.iss'
+      - '.github/workflows/windows-ai.yml'
 jobs:
   windows-build:
     runs-on: windows-latest
