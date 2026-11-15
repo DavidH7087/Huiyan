@@ -125,6 +125,22 @@ if __name__ == '__main__':
             log = os.getenv('HUIYAN_DESKTOP_SMOKE_LOG')
             if log:
                 Path(log).write_text(traceback.format_exc(), encoding='utf-8')
-        # Never expose resume contents in the normal desktop UI.
-        print('慧眼启动失败：' + type(error).__name__ + '。请查看安装说明。', file=sys.stderr)
+        # Never expose résumé content, the input path, or exception details to
+        # the end user. A --windowed Windows EXE has no visible stderr console.
+        error_type = type(error).__name__
+        if sys.stderr is not None:
+            print('慧眼启动失败：' + error_type + '。请查看安装说明。', file=sys.stderr)
+        if os.name == 'nt' and os.getenv('HUIYAN_DESKTOP_SMOKE') != '1':
+            try:
+                import ctypes
+                ctypes.windll.user32.MessageBoxW(
+                    None,
+                    '慧眼暂时无法启动。请关闭程序后重试。'
+                    '\\n\\n如果问题持续出现，请先备份本机慧眼数据目录，'
+                    '不要卸载后手动清理候选人资料。'
+                    '\\n\\n错误类别：' + error_type,
+                    '慧眼 · 启动失败', 0x10
+                )
+            except Exception:
+                pass  # Never let the error-notification mechanism crash again.
         sys.exit(1)
