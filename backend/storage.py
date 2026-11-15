@@ -9,7 +9,8 @@ PRAGMA foreign_keys=ON;
 CREATE TABLE IF NOT EXISTS tasks (
  id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL,
  description TEXT NOT NULL DEFAULT '', required TEXT NOT NULL DEFAULT '[]', preferred TEXT NOT NULL DEFAULT '[]',
- created_at TEXT NOT NULL DEFAULT (datetime('now')), archived INTEGER NOT NULL DEFAULT 0
+ created_at TEXT NOT NULL DEFAULT (datetime('now')), archived INTEGER NOT NULL DEFAULT 0,
+ excluded TEXT NOT NULL DEFAULT '[]', match_mode TEXT NOT NULL DEFAULT 'aliases'
 );
 CREATE TABLE IF NOT EXISTS resumes (
  id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL REFERENCES tasks(id),
@@ -59,6 +60,12 @@ class Store:
         self.db=self.root/'huiyan.sqlite3'
         with self.connect() as cn:
             cn.executescript(SCHEMA)
+            # SQLite databases created before v0.7 must retain all their history.
+            existing={row['name'] for row in cn.execute('PRAGMA table_info(tasks)')}
+            if 'excluded' not in existing:
+                cn.execute("ALTER TABLE tasks ADD COLUMN excluded TEXT NOT NULL DEFAULT '[]'")
+            if 'match_mode' not in existing:
+                cn.execute("ALTER TABLE tasks ADD COLUMN match_mode TEXT NOT NULL DEFAULT 'aliases'")
 
     @contextmanager
     def connect(self):

@@ -38,12 +38,16 @@ class TaskCreate(BaseModel):
     description: str=Field(default='',max_length=12000)
     required: list[str]=Field(default_factory=list)
     preferred: list[str]=Field(default_factory=list)
+    excluded: list[str]=Field(default_factory=list)
+    match_mode: Literal['aliases','exact']='aliases'
 
 class TaskPatch(BaseModel):
     title: str|None=None
     description: str|None=None
     required: list[str]|None=None
     preferred: list[str]|None=None
+    excluded: list[str]|None=None
+    match_mode: Literal['aliases','exact']|None=None
     archived: bool|None=None
 
 class TaskDelete(BaseModel):
@@ -81,6 +85,7 @@ def get_task(cn,task_id):
     d=row_dict(row)
     d['required']=json.loads(d['required'])
     d['preferred']=json.loads(d['preferred'])
+    d['excluded']=json.loads(d['excluded'])
     d['archived']=bool(d['archived'])
     return d
 
@@ -109,7 +114,7 @@ def create_app(data_dir:Path|None=None):
     store=Store(root)
     semantic=LocalSemanticService()
     ocr=LocalOcrService()
-    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.7.0-preview')
+    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.7.1-preview')
     if os.environ.get('HUIYAN_DESKTOP_MODE') == '1':
         app.add_middleware(DesktopRequestGuard)
 
@@ -209,8 +214,8 @@ def create_app(data_dir:Path|None=None):
     @app.post('/api/tasks')
     def new_task(payload:TaskCreate):
         with store.connect() as cn:
-            c=cn.execute('INSERT INTO tasks(title,description,required,preferred) VALUES(?,?,?,?)',
-                (payload.title.strip(),payload.description,dumps(split_terms(payload.required)),dumps(split_terms(payload.preferred))))
+            c=cn.execute('INSERT INTO tasks(title,description,required,preferred,excluded,match_mode) VALUES(?,?,?,?,?,?)',
+                (payload.title.strip(),payload.description,dumps(split_terms(payload.required)),dumps(split_terms(payload.preferred)),dumps(split_terms(payload.excluded)),payload.match_mode))
             return get_task(cn,c.lastrowid)
 
     @app.get('/api/tasks/{task_id}')
@@ -229,7 +234,7 @@ def create_app(data_dir:Path|None=None):
             edits=payload.model_dump(exclude_unset=True)
             fields=[]; values=[]
             for key,val in edits.items():
-                if key in ('required','preferred'):
+                if key in ('required','preferred','excluded'):
                     val=dumps(split_terms(val))
                 if key=='archived':
                     val=int(val)
@@ -447,7 +452,7 @@ def create_app(data_dir:Path|None=None):
                         if json.loads(record['results_json'])['group']!=payload.source_filter:
                             continue
                     ids.append(record['resume_id'])
-            terms=task['required']+task['preferred']
+            terms=task['required']+task['preferred']+task['excluded']
             new=suggest_conditions(payload.query)
             additional=[x for x in new['required']+new['preferred'] if x not in terms]
             # A free-form follow-up must be searchable even without a term in our
@@ -457,8 +462,10 @@ def create_app(data_dir:Path|None=None):
             # Added query terms are soft evidence signals, never new hard criteria automatically.
             required=task['required']
             preferred=list(dict.fromkeys(task['preferred']+additional))
+            excluded=task['excluded']
+            match_mode=task['match_mode']
             matcher=semantic.get_matcher()
-            criteria={'required':required,'preferred':preferred,'query':payload.query,
+            criteria={'required':required,'preferred':preferred,'excluded':excluded,'match_mode':match_mode,'query':payload.query,
                       'engine':'hybrid_retrieval_v0.2' if matcher else 'local_evidence_v1',
                       'semantic':semantic.status(), 'source_filter':payload.source_filter}
             cur=cn.execute('INSERT INTO runs(task_id,parent_id,name,query,scope,criteria_json) VALUES(?,?,?,?,?,?)',
@@ -476,7 +483,7 @@ def create_app(data_dir:Path|None=None):
                      WHERE r.task_id=? AND e.run_id=?""",(task_id,payload.parent_id))
                         if r['id'] in valid_ids]
             for resume in source:
-                score=evaluate(required,preferred,json.loads(resume['pages_json']),semantic_matcher=matcher)
+                score=evaluate(required,preferred,json.loads(resume['pages_json']),semantic_matcher=matcher,excluded=excluded,match_mode=match_mode)
                 cn.execute('INSERT INTO evaluations(run_id,resume_id,results_json) VALUES(?,?,?)',(run_id,resume['id'],dumps(score)))
             return {'id':run_id,'name':payload.name,'candidate_count':len(source),'criteria':criteria}
 
@@ -522,7 +529,7 @@ def create_app(data_dir:Path|None=None):
     def export_results(task_id:int,run_id:int):
         data=results(task_id,run_id)
         wb=Workbook(); ws=wb.active;ws.title='筛选结果'
-        ws.append(['候选人','原文件','电话','邮箱','AI辅助分组','证据覆盖率','匹配条件','待核实条件','人工审核','审核备注'])
+        ws.append(['候选人','原文件','电话','邮箱','AI辅助分组','证据覆盖率','匹配条件','待核实条件','人工审核','审核备注','需核对排除线索','关键词匹配模式'])
         def safe(value):
             value=str(value or '')
             return "'"+value if value.startswith(('=','+','-','@')) else value
@@ -531,9 +538,11 @@ def create_app(data_dir:Path|None=None):
             matched='、'.join(x['term'] for x in checks if x['evidence'])
             unknown='、'.join(x['term'] for x in checks if not x['evidence'])
             ws.append([safe(row['name']),safe(row['filename']),safe(row['phone']),safe(row['email']),ev['group'],
-                       ev['evidence_coverage'],safe(matched),safe(unknown),row['review_status'],safe(row['review_note'])])
+                       ev['evidence_coverage'],safe(matched),safe(unknown),row['review_status'],safe(row['review_note']),
+                       safe('、'.join(c['term'] for c in checks if c['kind']=='excluded' and c['evidence'])),
+                       '精确文字' if data['run']['criteria'].get('match_mode')=='exact' else '智能同义'])
         ws.freeze_panes='A2'; ws.auto_filter.ref=ws.dimensions
-        for col,width in {'A':20,'B':33,'C':19,'D':30,'E':18,'F':14,'G':48,'H':48,'I':19,'J':38}.items():
+        for col,width in {'A':20,'B':33,'C':19,'D':30,'E':18,'F':14,'G':48,'H':48,'I':19,'J':38,'K':35,'L':18}.items():
             ws.column_dimensions[col].width=width
         buf=io.BytesIO(); wb.save(buf);buf.seek(0)
         return StreamingResponse(buf,media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

@@ -96,8 +96,9 @@ def _contains_alias(text: str, alias: str) -> bool:
     return token in normalise(text)
 
 
-def find_evidence(term: str, pages: list[dict]) -> dict | None:
-    aliases = sorted(alias_options(term), key=len, reverse=True)
+def find_evidence(term: str, pages: list[dict], match_mode: str = 'aliases') -> dict | None:
+    # Exact mode disables synonym expansion; it still normalises whitespace/case.
+    aliases = sorted(([term] if match_mode == 'exact' else alias_options(term)), key=len, reverse=True)
     for page in pages:
         original = page.get("text", "")
         sentences = re.split(r"[。！？!?\n；;]+", original)
@@ -115,34 +116,50 @@ def find_evidence(term: str, pages: list[dict]) -> dict | None:
     return None
 
 
-def evaluate(required: list[str], preferred: list[str], pages: list[dict], semantic_matcher=None) -> dict:
+def evaluate(required: list[str], preferred: list[str], pages: list[dict], semantic_matcher=None,
+             excluded: list[str] | None = None, match_mode: str = 'aliases') -> dict:
     checks=[]
+    excluded=excluded or []
     for term, kind in [(x, "required") for x in required]+[(x, "preferred") for x in preferred]:
-        evidence=find_evidence(term,pages)
+        evidence=find_evidence(term,pages,match_mode)
         checks.append({"term":term,"kind":kind,"state":("OCR文字待核实" if evidence and evidence.get("source")=="ocr" else "有相关文字" if evidence else "待核实"),
                        "evidence":evidence,"semantic_hint":None})
+    # Exclusion evidence is a manual verification signal, never a deletion rule.
+    for term in excluded:
+        evidence=find_evidence(term,pages,match_mode)
+        checks.append({'term':term,'kind':'excluded',
+                       'state':('OCR排除线索待核实' if evidence and evidence.get('source')=='ocr'
+                                else '排除线索待人工核实' if evidence else '未发现排除线索'),
+                       'evidence':evidence,'semantic_hint':None})
     if semantic_matcher is not None:
-        missing = [c['term'] for c in checks if not c['evidence']]
+        missing = [c['term'] for c in checks if c['kind']!='excluded' and not c['evidence']]
         hints = semantic_matcher.search_many(missing, pages) if missing else {}
         for check in checks:
             if not check['evidence'] and check['term'] in hints:
                 check['semantic_hint'] = hints[check['term']]
                 check['state'] = '语义相关待核实'
 
-    must=[x for x in checks if x["kind"]=="required"]
-    good=[x for x in checks if x["state"]=="有相关文字"]
+    positive_checks=[x for x in checks if x['kind']!='excluded']
+    must=[x for x in positive_checks if x['kind']=='required']
+    good=[x for x in positive_checks if x['state']=='有相关文字']
+    exclusion_flags=sum(bool(x['evidence']) for x in checks if x['kind']=='excluded')
     required_found=sum(x["state"]=="有相关文字" for x in must)
     # Ratio is an evidence search indicator, not aptitude, probability, or truth.
-    total=len(checks)
-    coverage=round(sum(bool(c["evidence"]) for c in checks)/total*100) if total else 0
+    total=len(positive_checks)
+    coverage=round(sum(bool(c['evidence']) for c in positive_checks)/total*100) if total else 0
     if must and required_found==len(must):
         group="优先查看"
     elif not must and good:
         group="优先查看"
     else:
         group="需要确认"
-    hint_count=sum(bool(c["semantic_hint"]) for c in checks)
-    return {"group":group,"evidence_coverage":coverage,"checks":checks,
-            "matched_count":sum(bool(c["evidence"]) for c in checks),"required_met_textually":required_found,
-            "semantic_hint_count":hint_count,
-            "sort_key":required_found*10+sum(x["state"]=="有相关文字" for x in checks if x["kind"]=="preferred")+min(hint_count,5)*0.01}
+    if exclusion_flags:
+        group='需要确认'
+    hint_count=sum(bool(c['semantic_hint']) for c in positive_checks)
+    return {'group':group,'evidence_coverage':coverage,'checks':checks,
+            'matched_count':sum(bool(c['evidence']) for c in positive_checks),
+            'required_met_textually':required_found,
+            'semantic_hint_count':hint_count,'exclusion_flags':exclusion_flags,
+            'sort_key':(required_found*10+sum(x['state']=='有相关文字'
+                          for x in positive_checks if x['kind']=='preferred')
+                        +min(hint_count,5)*0.01 - exclusion_flags*100)}

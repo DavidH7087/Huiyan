@@ -2,7 +2,7 @@ const view = document.getElementById('view');
 const nav = [...document.querySelectorAll('[data-view]')];
 const state = {
   page:'home', tasks:[], task:null, runs:[], run:null, result:null, selected:null,
-  description:'', required:[], preferred:[], title:'', filter:'全部', busy:false, preview:null,
+  description:'', required:[], preferred:[], excluded:[], matchMode:'aliases', title:'', filter:'全部', busy:false, preview:null,
   currentText:null, uploadSummary:null, search:'', health:null, profileStatus:null, recoveryNotice:'',
 };
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -33,6 +33,8 @@ function confirm(){return `<div class="page-title"><h1>确认筛选要求</h1><p
 <div class="field"><label for="descConfirm">招聘需求</label><textarea id="descConfirm">${e(state.description)}</textarea></div>
 <div class="form-grid"><div class="field"><label for="mustTerms">必须具备</label><textarea id="mustTerms" style="min-height:110px">${e(state.required.join('、'))}</textarea><small>多个条件使用顿号分隔。未发现相关文字会标记为“需要确认”，不自动淘汰。</small></div>
 <div class="field"><label for="bonusTerms">优先考虑</label><textarea id="bonusTerms" style="min-height:110px">${e(state.preferred.join('、'))}</textarea><small>这些条件有相关经历则优先显示，但并非必要条件。</small></div></div>
+<div class="form-grid"><div class="field"><label for="excludedTerms">排除线索（选填）</label><textarea id="excludedTerms" style="min-height:72px" placeholder="例如：仅短期兼职、未独立负责">${e(state.excluded.join('、'))}</textarea><small>只标记需要 HR 复核的线索，系统不会自动淘汰或删除简历。不要使用年龄、性别等敏感个人特征。</small></div>
+<div class="field"><label for="keywordMode">关键词匹配方式</label><select id="keywordMode"><option value="aliases" ${state.matchMode==='aliases'?'selected':''}>智能同义（默认）</option><option value="exact" ${state.matchMode==='exact'?'selected':''}>精确文字（不扩展同义词）</option></select><small>仅影响关键词检索，不代表判断应聘者真实能力。</small></div></div>
 <div class="notice">系统对招聘描述的自动提取只是建议，尤其是“最好”“不限”等词，请在这里核对后再继续。</div>
 <div class="actions" style="margin-top:22px"><button class="btn secondary" data-go="home">返回修改</button><button class="btn" id="createTask">创建任务，添加简历 →</button></div></div>`}
 function importPage(){return `<div class="page-title"><h1>添加简历</h1><p>${e(state.task?.title||'')} · 可以一次添加多个文件或整个文件夹。</p></div>
@@ -54,7 +56,7 @@ return `<div class="task-header"><div><h1>${e(state.task?.title||'筛选任务')
 <div class="toolbar"><div class="left"><h2>候选人</h2><span class="subtle small">按相关文字证据排序，语义线索需人工核实</span></div><button class="btn secondary small" id="openHistory">筛选历史 (${state.runs.length})</button></div>
 ${run?.criteria?.semantic?.state==='error'?`<div class="notice warn">本地语义分析暂不可用，已改用基础文字匹配。请在设置中检查模型。</div>`:''}${!run?`<div class="empty"><p>还没有筛选结果。</p><button class="btn" id="firstScreening">开始第一轮筛选</button></div>`:`<div class="filters">${['全部','优先查看','需要确认','面试名单'].map(f=>`<button class="filter ${state.filter===f?'active':''}" data-filter="${e(f)}">${e(f)}</button>`).join('')}</div>
 <div class="two-col"><div><div style="margin-bottom:13px"><input id="candidateSearch" placeholder="搜索候选人、文件名或条件" value="${e(state.search)}"></div>
-<div class="candidate-list">${visible.map(r=>`<div class="candidate-row ${selected?.resume_id===r.resume_id?'selected':''}" data-candidate="${r.resume_id}"><header><strong>${e(r.name)}</strong>${badge(r.evaluation.group,r.evaluation.group==='优先查看'?'green':'amber')}${r.possible_duplicate_with?.length?badge('疑似重复','amber'):''}</header><p>${e(r.filename)} · 找到 ${r.evaluation.matched_count} 项文字证据${r.evaluation.semantic_hint_count?` · ${r.evaluation.semantic_hint_count} 项语义线索`:''} · ${e(r.review_status)}</p></div>`).join('')||'<div class="empty">当前筛选条件没有候选人。</div>'}</div>
+<div class="candidate-list">${visible.map(r=>`<div class="candidate-row ${selected?.resume_id===r.resume_id?'selected':''}" data-candidate="${r.resume_id}"><header><strong>${e(r.name)}</strong>${badge(r.evaluation.group,r.evaluation.group==='优先查看'?'green':'amber')}${r.possible_duplicate_with?.length?badge('疑似重复','amber'):''}</header><p>${e(r.filename)} · 找到 ${r.evaluation.matched_count} 项文字证据${r.evaluation.semantic_hint_count?` · ${r.evaluation.semantic_hint_count} 项语义线索`:''}${r.evaluation.exclusion_flags?` · ${r.evaluation.exclusion_flags} 项排除线索待核实`:''} · ${e(r.review_status)}</p></div>`).join('')||'<div class="empty">当前筛选条件没有候选人。</div>'}</div>
 <div class="surface subpanel"><h2>继续筛选</h2><p class="hint">输入补充条件并创建新轮次，原结果不变。补充条件默认作为优先线索，不自动提高必要门槛。</p><textarea id="followupQuery" placeholder="例如：更关注有制造业客户经验的人" style="min-height:80px"></textarea><label for="followupScope">在这些候选人中继续筛选</label><select id="followupScope"><option value="全部">当前轮次全部人选</option><option value="优先查看">仅优先查看的人选</option><option value="需要确认">仅需要确认的人选</option><option value="面试名单">仅面试名单</option></select><div class="actions" style="margin-top:10px"><button class="btn secondary" id="screenAgain">创建新一轮筛选</button></div></div></div>
 <aside class="surface panel">${selected?candidatePanel(selected):'<p class="subtle">选择一位候选人查看详情。</p>'}</aside></div>
 <div class="subpanel"><h2>历史轮次</h2><div style="margin-top:14px">${roundsMarkup()}</div></div>`}`}
@@ -62,6 +64,7 @@ function candidatePanel(r){const checks=r.evaluation.checks;return `<h3>${e(r.na
 ${r.possible_duplicate_with?.length?`<div class="notice warn">发现 ${r.possible_duplicate_with.length} 份联系方式相同的简历（ID：${r.possible_duplicate_with.map(x=>Number(x)).join("、")}），可能是同一人的不同版本。原始文件均保留，请人工核对。</div>`:''}
 ${r.ocr_pages?`<div class="notice warn">${r.ocr_pages} 页来自扫描件 OCR；识别文字可能出错，请打开原简历核对。</div>`:''}
 ${r.parse_warnings&&!r.ocr_pages?`<div class="notice warn">该简历有 ${r.parse_warnings} 页文字不完整，建议核对原件。</div>`:''}
+${r.evaluation.exclusion_flags?`<div class="notice warn">发现 ${Number(r.evaluation.exclusion_flags)} 项排除线索，<strong>只能由 HR 人工核实</strong>，系统不会自动淘汰。</div>`:''}
 <div class="inline-actions"><button class="btn secondary small" data-preview="${r.resume_id}">阅读简历内容</button><a class="btn secondary small" target="_blank" rel="noopener" href="/api/tasks/${state.task.id}/resumes/${r.resume_id}/original">打开原文件</a></div>
 ${checks.map(c=>`<div class="evidence-item"><div class="toolbar" style="margin:0"><strong>${e(c.term)}</strong>${badge(c.state||'待核实',c.state==='有相关文字'?'green':'amber')}</div>${c.evidence?`<p>第 ${Number(c.evidence.page)} 页 · “${e(c.evidence.excerpt)}”</p>`:c.semantic_hint?`<p class="semantic-lead">可能相关的经历（第 ${Number(c.semantic_hint.page)} 页），<strong>需要人工核实</strong>： “${e(c.semantic_hint.excerpt)}”</p>`:'<p>没有找到足够的直接文字证据，不能直接判定候选人不具备该能力。</p>'}</div>`).join('')||'<div class="notice">当前任务没有配置明确筛选条件，请返回修改岗位要求。</div>'}
 <div class="subpanel"><h3>人工审核</h3><label for="reviewStatus">审核状态</label><select id="reviewStatus">${['未审核','加入面试名单','需要补充资料','暂不推进'].map(v=>`<option value="${e(v)}" ${v===r.review_status?'selected':''}>${e(v)}</option>`).join('')}</select>
@@ -100,13 +103,13 @@ view.addEventListener('click',ev=>withBusy(async()=>{
   if(target.id==='describeNext'){
     state.description=el('newDescription').value.trim();if(!state.description){toast('请先输入岗位要求');return}
     const suggestion=await post('/api/criteria/suggest',{description:state.description});
-    state.required=suggestion.required;state.preferred=suggestion.preferred;state.title='';setPage('confirm');return;
+    state.required=suggestion.required;state.preferred=suggestion.preferred;state.excluded=[];state.matchMode='aliases';state.title='';setPage('confirm');return;
   }
   if(target.id==='createTask'){
-    state.title=el('jobTitle').value.trim();state.description=el('descConfirm').value.trim();state.required=terms(el('mustTerms').value);state.preferred=terms(el('bonusTerms').value);
+    state.title=el('jobTitle').value.trim();state.description=el('descConfirm').value.trim();state.required=terms(el('mustTerms').value);state.preferred=terms(el('bonusTerms').value);state.excluded=terms(el('excludedTerms').value);state.matchMode=el('keywordMode').value;
     if(!state.title){toast('请输入岗位或任务名称');return}
     if(!state.required.length&&!state.preferred.length){toast('请至少确认一个筛选条件');return}
-    state.task=await post('/api/tasks',{title:state.title,description:state.description,required:state.required,preferred:state.preferred});
+    state.task=await post('/api/tasks',{title:state.title,description:state.description,required:state.required,preferred:state.preferred,excluded:state.excluded,match_mode:state.matchMode});
     state.task.resume_count=0;state.uploadSummary=null;await fetchTasks();setPage('import');toast('招聘任务已创建');return;
   }
   if(target.id==='uploadMore'){state.uploadSummary=null;state.task=await api(`/api/tasks/${state.task.id}`);setPage('import');return;}
