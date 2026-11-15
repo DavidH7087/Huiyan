@@ -482,6 +482,45 @@ def create_app(data_dir:Path|None=None):
                 out.append(d)
             return out
 
+    @app.get('/api/tasks/{task_id}/runs/compare')
+    def compare_runs(task_id:int, left:int, right:int):
+        """Compare immutable evaluation snapshots, not mutable HR review labels."""
+        with store.connect() as cn:
+            first=get_run(cn,task_id,left)
+            second=get_run(cn,task_id,right)
+            def collect(run_id):
+                result={}
+                for row in cn.execute("""SELECT r.id,r.name,r.filename,e.results_json
+                    FROM evaluations e JOIN resumes r ON r.id=e.resume_id
+                    WHERE r.task_id=? AND e.run_id=?""",(task_id,run_id)):
+                    evidence=json.loads(row['results_json'])
+                    result[row['id']]={'resume_id':row['id'],'name':row['name'],
+                        'filename':row['filename'],'group':evidence['group'],
+                        'matched_count':evidence['matched_count']}
+                return result
+            a=collect(left); b=collect(right)
+            def label(row):
+                return {key:row[key] for key in ('resume_id','name','filename','group','matched_count')}
+            common=set(a)&set(b)
+            changed=[{'resume_id':key,'name':a[key]['name'],
+                     'before':a[key]['group'],'after':b[key]['group']}
+                     for key in sorted(common)
+                     if a[key]['group']!=b[key]['group']]
+            return {
+                'left':{'id':left,'name':first['name'],'criteria':json.loads(first['criteria_json']),
+                        'total':len(a)},
+                'right':{'id':right,'name':second['name'],'criteria':json.loads(second['criteria_json']),
+                         'total':len(b)},
+                'same':len(common),
+                'added_count':len(set(b)-set(a)),
+                'removed_count':len(set(a)-set(b)),
+                'changed_group_count':len(changed),
+                'added':[label(b[key]) for key in sorted(set(b)-set(a))[:100]],
+                'removed':[label(a[key]) for key in sorted(set(a)-set(b))[:100]],
+                'changed':changed[:100],
+                'note':'仅比较两轮保存的文字证据分组；当前人工审核状态并不属于历史快照。'
+            }
+
     @app.post('/api/tasks/{task_id}/runs')
     def new_run(task_id:int, payload:RunCreate):
         with store.connect() as cn:
@@ -545,10 +584,53 @@ def create_app(data_dir:Path|None=None):
             relevance=bm25_relevance(query_text, corpus)
             for resume,pages,relevance_score in zip(source,parsed,relevance):
                 score=evaluate(required,preferred,pages,semantic_matcher=matcher,excluded=excluded,match_mode=match_mode)
+                # Capture the human review state at round creation, independently
+                # from the up-to-date review overlay returned to the results UI.
+                prior=cn.execute('SELECT status,note FROM reviews WHERE task_id=? AND resume_id=?',
+                                 (task_id,resume['id'])).fetchone()
+                score['review_at_run']={'status':prior['status'],'note':prior['note']} if prior else {'status':'未审核','note':''}
                 score['text_relevance']=relevance_score
                 score['sort_key']=round(score['sort_key'] + relevance_score*0.3,5)
                 cn.execute('INSERT INTO evaluations(run_id,resume_id,results_json) VALUES(?,?,?)',(run_id,resume['id'],dumps(score)))
             return {'id':run_id,'name':payload.name,'candidate_count':len(source),'criteria':criteria}
+
+    @app.post('/api/tasks/{task_id}/runs/{run_id}/replay')
+    def replay_run(task_id:int,run_id:int):
+        """Reapply a historical round's criteria against currently stored resumes.
+
+        Does not mutate old snapshots or silently reintroduce erased candidates.
+        """
+        with store.connect() as cn:
+            old=get_run(cn,task_id,run_id)
+            original=json.loads(old['criteria_json'])
+            required=original.get('required',[])
+            preferred=original.get('preferred',[])
+            excluded=original.get('excluded',[])
+            mode=original.get('match_mode','aliases')
+            criteria={**original,'replay_of':run_id,'source_filter':'全部',
+                      'replay_scope':'all_current_resumes'}
+            name=('复用 · '+old['name'])[:100]
+            created=cn.execute("""INSERT INTO runs(task_id,parent_id,name,query,scope,criteria_json)
+                VALUES(?,?,?,?,?,?)""",(task_id,run_id,name,old['query'],'all',dumps(criteria)))
+            source=cn.execute('SELECT id,pages_json FROM resumes WHERE task_id=?',
+                              (task_id,)).fetchall()
+            pages=[json.loads(row['pages_json']) for row in source]
+            corpus=['\n'.join(p.get('text','') for p in parts)[:12000] for parts in pages]
+            scores=bm25_relevance(' '.join([*required,*preferred,old['query']]),corpus)
+            matcher=semantic.get_matcher()
+            for row,parts,relevance_score in zip(source,pages,scores):
+                evaluation=evaluate(required,preferred,parts,semantic_matcher=matcher,
+                                    excluded=excluded,match_mode=mode)
+                prior=cn.execute('SELECT status,note FROM reviews WHERE task_id=? AND resume_id=?',
+                                 (task_id,row['id'])).fetchone()
+                evaluation['review_at_run']=({'status':prior['status'],'note':prior['note']}
+                                            if prior else {'status':'未审核','note':''})
+                evaluation['text_relevance']=relevance_score
+                evaluation['sort_key']=round(evaluation['sort_key']+relevance_score*0.3,5)
+                cn.execute('INSERT INTO evaluations(run_id,resume_id,results_json) VALUES(?,?,?)',
+                           (created.lastrowid,row['id'],dumps(evaluation)))
+            return {'id':created.lastrowid,'name':name,
+                    'candidate_count':len(source),'criteria':criteria}
 
     @app.get('/api/tasks/{task_id}/runs/{run_id}/results')
     def results(task_id:int,run_id:int):
@@ -566,6 +648,7 @@ def create_app(data_dir:Path|None=None):
                 d['ocr_pages']=sum(p.get('source')=='ocr' for p in page_records)
                 d['parse_warnings']=sum(bool(p.get('warning')) for p in page_records)
                 d['evaluation']=json.loads(d.pop('results_json'))
+                d['review_at_run']=d['evaluation'].get('review_at_run')
                 d['review_status']=d['review_status'] or '未审核'
                 d['review_note']=d['review_note'] or ''
                 records.append(d)
