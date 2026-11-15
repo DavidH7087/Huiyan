@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import os
 import re
+from collections import OrderedDict
+from threading import RLock
 from pathlib import Path
 from typing import Protocol
 
@@ -60,6 +62,12 @@ class SemanticMatcher:
         self.encoder = encoder
         self.reranker = reranker
         self.minimum_similarity = minimum_similarity
+        # Bounded RAM-only cache reused by subsequent screening rounds. Stores
+        # embeddings, never persists model vectors/candidate text outside the
+        # existing local database. Serialises CPU model inference across users.
+        self._cache_limit = 4096
+        self._cache: OrderedDict[str, object] = OrderedDict()
+        self._cache_lock = RLock()
 
     @property
     def enabled(self) -> bool:
@@ -72,9 +80,28 @@ class SemanticMatcher:
         snippets = passages(pages)
         if not unique_terms or not snippets:
             return {}
-        # Batch document encoding once per resume instead of once per criterion.
-        vectors = self.encoder.encode([*unique_terms, *[s['excerpt'] for s in snippets]],
-                                      normalize_embeddings=True, show_progress_bar=False)
+        # Reuse embeddings across resumes and *multiple screening rounds*;
+        # recompute only genuinely new text. Bound memory to avoid unbounded
+        # growth on large recruiting batches. No disk/model cloud calls.
+        phrases = [*unique_terms, *[s['excerpt'] for s in snippets]]
+        with self._cache_lock:
+            missing = [value for value in dict.fromkeys(phrases) if value not in self._cache]
+            computed = {}
+            if missing:
+                generated = list(self.encoder.encode(missing, normalize_embeddings=True,
+                                                     show_progress_bar=False))
+                if len(generated) != len(missing):
+                    raise ValueError('Embedding model returned incomplete batch')
+                computed = dict(zip(missing, generated))
+            vectors = [self._cache[value] if value in self._cache else computed[value]
+                       for value in phrases]
+            for value in dict.fromkeys(phrases):
+                if value in self._cache:
+                    self._cache.move_to_end(value)
+                else:
+                    self._cache[value] = computed[value]
+            while len(self._cache) > self._cache_limit:
+                self._cache.popitem(last=False)
         document_vectors = vectors[len(unique_terms):]
         selections = {}
         pairs = []
