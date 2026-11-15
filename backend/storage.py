@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS tasks (
  id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL,
  description TEXT NOT NULL DEFAULT '', required TEXT NOT NULL DEFAULT '[]', preferred TEXT NOT NULL DEFAULT '[]',
  created_at TEXT NOT NULL DEFAULT (datetime('now')), archived INTEGER NOT NULL DEFAULT 0,
- excluded TEXT NOT NULL DEFAULT '[]', match_mode TEXT NOT NULL DEFAULT 'aliases'
+ excluded TEXT NOT NULL DEFAULT '[]', match_mode TEXT NOT NULL DEFAULT 'aliases',
+ description_leads TEXT DEFAULT NULL
 );
 CREATE TABLE IF NOT EXISTS resumes (
  id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL REFERENCES tasks(id),
@@ -72,6 +73,8 @@ class Store:
                 cn.execute("ALTER TABLE tasks ADD COLUMN excluded TEXT NOT NULL DEFAULT '[]'")
             if 'match_mode' not in existing:
                 cn.execute("ALTER TABLE tasks ADD COLUMN match_mode TEXT NOT NULL DEFAULT 'aliases'")
+            if 'description_leads' not in existing:
+                cn.execute("ALTER TABLE tasks ADD COLUMN description_leads TEXT DEFAULT NULL")
 
     @contextmanager
     def connect(self):
