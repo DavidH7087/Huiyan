@@ -131,6 +131,10 @@ Windows 桌面版「招聘档案」页可创建 AES-256-GCM 加密备份 `.hyb`�
 - **诊断提示**：无法读出文字时显示 OCR 状态和实际原因，不默默当作空白简历。
 - OCR 的提取内容均需要人工核实，不能直接判定岗位资格。详见 [OCR 使用说明](docs/OCR_SETUP.md) 及 [阶段报告](docs/PHASE4D_REPORT.md)。
 
+## Phase 6E：PDF 乱码文字层保护
+
+遇到 PDF 字体映射异常（CID 编码、私用字形、缺字方框、Unicode 替换字符）时，不能凭文字长度认为解析成功。本阶段为这类页增加本地 OCR 回退和来源标记；无法恢复有效文字时拒绝仅乱码的文件，避免污染筛选结果。详见 [`docs/PHASE6E_REPORT.md`](docs/PHASE6E_REPORT.md)。
+
 ## Phase 6C：本地桌面会话隔离
 
 Windows 程序每次启动生成随机会话令牌，通过本地 WebView2 引导后创建安全的 `HttpOnly` Cookie。除健康检查外，其余本地候选人资料 API 必须经过授权的窗口访问，同时继续启用 Host/Origin 验证。此机制减少同一机器其他浏览器误访问、跨站脚本或伪造本地域名的风险，但不替代 Windows 账户权限或磁盘加密。详见 [`docs/PHASE6C_REPORT.md`](docs/PHASE6C_REPORT.md)。

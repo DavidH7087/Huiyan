@@ -97,9 +97,24 @@ def _docx_pages(content: bytes, ocr=None) -> list[dict]:
             pass
     return records or [{'page': 1, 'text': '', 'source': 'unreadable'}]
 
+def _is_suspicious(text: str) -> bool:
+    """Catch PDFs with long *fake* text layers caused by broken font mappings."""
+    visible = re.sub(r'\s+', '', text or '')
+    if not visible:
+        return False
+    n = len(visible)
+    if len(re.findall(r'(?i)\(?cid:\d+\)?', visible)) >= 2:
+        return True
+    if sum(0xE000 <= ord(c) <= 0xF8FF for c in visible) >= max(5, int(n * .20)):
+        return True
+    if sum(c in '\ufffd\u25a1\u25a0' for c in visible) >= max(5, int(n * .20)):
+        return True
+    return False
+
+
 def _is_weak(text: str) -> bool:
     visible = re.sub(r'\s+', '', text or '')
-    return len(visible) < 12 or (visible.count('\ufffd') / max(1, len(visible))) > .20
+    return len(visible) < 12 or _is_suspicious(text)
 
 def _pdf_pages(content: bytes, ocr=None) -> list[dict]:
     reader = PdfReader(io.BytesIO(content), strict=False)
@@ -112,17 +127,20 @@ def _pdf_pages(content: bytes, ocr=None) -> list[dict]:
             extracted = page.extract_text() or ''
         except Exception:
             extracted = ''
-        record = {'page': i + 1, 'text': extracted,
-                  'source': 'pdf_text' if extracted.strip() else 'unreadable'}
+        bad_layer = _is_suspicious(extracted)
+        record = {'page': i + 1, 'text': '' if bad_layer else extracted,
+                  'source': 'pdf_text' if extracted.strip() and not bad_layer else 'unreadable'}
         if _is_weak(extracted):
             if ready and attempts < MAX_OCR_PAGES:
                 attempts += 1
                 try:
                     recognized = ocr.recognize_pdf_page(content, i).strip()
-                    if len(recognized) > len(extracted.strip()) or '\ufffd' in extracted:
+                    if (recognized and not _is_suspicious(recognized)
+                            and (bad_layer or len(recognized) > len(extracted.strip()) or '\ufffd' in extracted)):
                         record.update(text=recognized, source='ocr', warning='本页文字由 OCR 识别，需核对原件')
                     else:
-                        record['warning'] = 'PDF 页面文字较少或扫描不清楚，请核对原件'
+                        record['warning'] = ('PDF 文字层乱码且 OCR 未读出可靠文字' if bad_layer else
+                                             'PDF 页面文字较少或扫描不清楚，请核对原件')
                 except OcrUnavailable:
                     record['warning'] = '该页 OCR 识别失败，请检查原件'
             else:
