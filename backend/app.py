@@ -55,6 +55,9 @@ class TaskPatch(BaseModel):
 class TaskDelete(BaseModel):
     confirm_title: str=Field(min_length=1,max_length=100)
 
+class ResumeDelete(BaseModel):
+    confirm_filename: str=Field(min_length=1,max_length=255)
+
 
 class BackupPassword(BaseModel):
     password: str = Field(min_length=12, max_length=256)
@@ -268,6 +271,7 @@ def create_app(data_dir:Path|None=None):
             cn.execute('DELETE FROM reviews WHERE task_id=?',(task_id,))
             cn.execute('DELETE FROM review_events WHERE task_id=?',(task_id,))
             cn.execute('DELETE FROM imports WHERE task_id=?',(task_id,))
+            cn.execute('DELETE FROM redaction_events WHERE task_id=?',(task_id,))
             cn.execute('DELETE FROM resumes WHERE task_id=?',(task_id,))
             cn.execute('DELETE FROM tasks WHERE id=?',(task_id,))
         failed=[]
@@ -283,6 +287,47 @@ def create_app(data_dir:Path|None=None):
         return {'deleted':True,'files':len(original_files),
                 'files_pending_cleanup':len(failed),
                 'warning':'部分文件清理失败，请联系管理员' if failed else ''}
+
+    @app.delete('/api/tasks/{task_id}/resumes/{resume_id}')
+    def delete_resume(task_id: int, resume_id: int, payload: ResumeDelete):
+        """Remove one candidate's personal data while leaving the task intact.
+
+        Deletion necessarily removes this candidate's saved evaluations from all
+        historical rounds. Previous encrypted backup files remain external and
+        must be managed separately under the organisation's retention policy.
+        """
+        with store.connect() as cn:
+            get_task(cn, task_id)
+            row = cn.execute(
+                'SELECT filename, stored_file FROM resumes WHERE id=? AND task_id=?',
+                (resume_id, task_id)).fetchone()
+            if row is None:
+                raise HTTPException(404, '候选人不存在')
+            if payload.confirm_filename != row['filename']:
+                raise HTTPException(400, '输入的原文件名称不一致，已取消删除')
+            stored_file = row['stored_file']
+            cn.execute('DELETE FROM evaluations WHERE resume_id=?', (resume_id,))
+            cn.execute('DELETE FROM resume_profiles WHERE resume_id=?', (resume_id,))
+            cn.execute('DELETE FROM reviews WHERE resume_id=? AND task_id=?', (resume_id, task_id))
+            cn.execute('DELETE FROM review_events WHERE resume_id=? AND task_id=?', (resume_id, task_id))
+            cn.execute('DELETE FROM imports WHERE task_id=? AND filename=?', (task_id, row['filename']))
+            cn.execute('DELETE FROM resumes WHERE id=? AND task_id=?', (resume_id, task_id))
+            # Only a non-identifying deletion count/event remains.
+            cn.execute('INSERT INTO redaction_events(task_id, action) VALUES(?,?)',
+                       (task_id, 'candidate_delete'))
+        pending = False
+        if not re.fullmatch(r'[0-9a-f]{32}\.(?:pdf|docx|txt)', stored_file):
+            pending = True
+        else:
+            try:
+                (store.root / 'uploads' / stored_file).unlink(missing_ok=True)
+            except OSError:
+                pending = True
+        return {
+            'deleted': True, 'files_pending_cleanup': int(pending),
+            'history_adjusted': True,
+            'warning': ('数据库记录已删除，但原文件清理失败，请联系管理员' if pending else ''),
+        }
 
     @app.get('/api/tasks/{task_id}/review-history')
     def review_history(task_id:int):

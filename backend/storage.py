@@ -45,6 +45,12 @@ CREATE TABLE IF NOT EXISTS review_events (
  id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, resume_id INTEGER NOT NULL,
  status TEXT NOT NULL, note TEXT NOT NULL, occurred_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS redaction_events (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+ action TEXT NOT NULL DEFAULT 'candidate_delete',
+ occurred_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS resume_profiles (
  resume_id INTEGER PRIMARY KEY REFERENCES resumes(id) ON DELETE CASCADE,
  extractor_version TEXT NOT NULL, profile_json TEXT NOT NULL,

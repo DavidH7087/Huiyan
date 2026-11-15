@@ -68,7 +68,9 @@ ${r.evaluation.exclusion_flags?`<div class="notice warn">发现 ${Number(r.evalu
 <div class="inline-actions"><button class="btn secondary small" data-preview="${r.resume_id}">阅读简历内容</button><a class="btn secondary small" target="_blank" rel="noopener" href="/api/tasks/${state.task.id}/resumes/${r.resume_id}/original">打开原文件</a></div>
 ${checks.map(c=>`<div class="evidence-item"><div class="toolbar" style="margin:0"><strong>${e(c.term)}</strong>${badge(c.state||'待核实',c.state==='有相关文字'?'green':'amber')}</div>${c.evidence?`<p>第 ${Number(c.evidence.page)} 页 · “${e(c.evidence.excerpt)}”</p>`:c.semantic_hint?`<p class="semantic-lead">可能相关的经历（第 ${Number(c.semantic_hint.page)} 页），<strong>需要人工核实</strong>： “${e(c.semantic_hint.excerpt)}”</p>`:'<p>没有找到足够的直接文字证据，不能直接判定候选人不具备该能力。</p>'}</div>`).join('')||'<div class="notice">当前任务没有配置明确筛选条件，请返回修改岗位要求。</div>'}
 <div class="subpanel"><h3>人工审核</h3><label for="reviewStatus">审核状态</label><select id="reviewStatus">${['未审核','加入面试名单','需要补充资料','暂不推进'].map(v=>`<option value="${e(v)}" ${v===r.review_status?'selected':''}>${e(v)}</option>`).join('')}</select>
-<label for="reviewNote">备注</label><textarea id="reviewNote" style="min-height:74px" placeholder="填写人工审核意见……">${e(r.review_note||'')}</textarea><button class="btn" style="width:100%;margin-top:12px" data-save-review="${r.resume_id}">保存审核</button></div>`}
+<label for="reviewNote">备注</label><textarea id="reviewNote" style="min-height:74px" placeholder="填写人工审核意见……">${e(r.review_note||'')}</textarea><button class="btn" style="width:100%;margin-top:12px" data-save-review="${r.resume_id}">保存审核</button>
+<p class="hint" style="margin-top:18px">需要响应个人资料删除申请时，可以永久删除该候选人的原文件与全部相关审核记录，历史筛选人数也会相应变化。</p>
+<button class="btn secondary small" id="deleteCandidate" data-delete-candidate="${r.resume_id}" data-filename="${e(r.filename)}">永久删除这位候选人</button></div>`}
 function roundsMarkup(){return state.runs.map((r,i)=>`<div class="round-row" data-run="${r.id}"><span class="round-no">${state.runs.length-i}</span><div class="grow"><strong>${e(r.name)}</strong><p>${e(fmt(r.created_at))} · ${r.candidate_count} 人 · ${r.parent_id?'基于上一轮':'全量筛选'}${r.criteria?.source_filter&&r.criteria.source_filter!=='全部'?' · '+e(r.criteria.source_filter):''}</p></div>${state.result?.run?.id===r.id?badge('当前轮次','green'):'<span class="subtle small">查看 ›</span>'}</div>`).join('')||'<div class="empty">暂无筛选记录</div>'}
 function baseArchivePage(){if(!state.task){return allTasks("all") + (state.health?.backup_available?`<div class="surface subpanel"><h2>加密备份招聘档案</h2><p class="hint">导出全部招聘任务、审核记录及原始简历。请妥善保存备份密码；遗失后无法恢复。</p><div class="actions" style="margin-top:12px"><input id="backupPassword" type="password" autocomplete="new-password" placeholder="设置至少 12 字符的备份密码" style="max-width:330px" aria-label="备份密码"><button class="btn secondary" id="createBackup">创建并下载加密备份</button></div><p class="hint">仅限本机 Windows 版；本备份文件含个人信息，切勿发送到公共仓库。</p></div>`:'')}return `<div class="toolbar"><button class="btn secondary small" id="archiveBack">← 所有任务</button><button class="btn small" data-go="results">查看候选人</button></div><div class="page-title"><h1>${e(state.task.title)} · 筛选档案</h1><p>每一次筛选都会单独记录条件和结果，不覆盖历史。</p></div><div class="surface"><h2 style="margin-bottom:18px">筛选轮次</h2>${roundsMarkup()}<div class="notice">筛选结果不会自动淘汰候选人；人工审核状态独立保存并保留修改记录。</div>${state.task.archived?'<div class="actions" style="margin-top:16px"><button class="btn secondary small" id="deleteArchivedTask">永久删除任务及全部简历（不可恢复）</button></div>':''}</div>`}
 function archivePage(){
@@ -176,6 +178,14 @@ view.addEventListener('click',ev=>withBusy(async()=>{
   }
   if(target.id==='toggleArchive'){state.task=await patch(`/api/tasks/${state.task.id}`,{archived:!state.task.archived});await fetchTasks();render();toast(state.task.archived?'任务已归档':'任务已恢复');return;}
   if(target.dataset.preview){state.preview=await api(`/api/tasks/${state.task.id}/resumes/${target.dataset.preview}`);setPage('preview');return;}
+  if(target.dataset.deleteCandidate){
+    const filename=target.dataset.filename;
+    const confirmation=window.prompt('将删除这位候选人的原始文件、审核记录和所有历史筛选中的对应结果。请输入完整文件名确认：'+filename);
+    if(confirmation!==filename){toast('文件名不一致，已取消删除');return}
+    const result=await api(`/api/tasks/${state.task.id}/resumes/${target.dataset.deleteCandidate}`,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm_filename:confirmation})});
+    state.task=await api(`/api/tasks/${state.task.id}`);state.selected=null;await showRun(state.result.run.id);
+    toast(result.files_pending_cleanup?'候选人记录已删除，但原文件清理失败，请联系管理员':'候选人及全部相关本地记录已删除');return;
+  }
   if(target.dataset.saveReview){await patch(`/api/tasks/${state.task.id}/resumes/${target.dataset.saveReview}/review`,{status:el('reviewStatus').value,note:el('reviewNote').value});await showRun(state.result.run.id);state.selected=Number(target.dataset.saveReview);render();toast('审核记录已保存');return;}
 }));
 withBusy(async()=>{await fetchTasks();try{state.health=await api('/api/health')}catch{state.health=null}setPage('home')});
