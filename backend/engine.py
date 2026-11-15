@@ -86,19 +86,27 @@ def _clean_requirement_clause(raw: str) -> str:
 
 
 def suggest_conditions(description: str) -> dict:
-    """Suggest candidate skills, excluding hiring instructions and disclaimers."""
+    """Suggest candidate skills, excluding hiring instructions and disclaimers.
+
+    '优先考虑制造业、大客户管理和渠道拓展' applies the preference
+    to all comma-separated subsequent requirements within that sentence.
+    """
     required: list[str] = []
     preferred: list[str] = []
-    clauses = re.split(r"[。；;\n，,、]+", description or "")
-    for raw in clauses:
-        clause = re.sub(r"【[^】]{0,60}】", "", raw).strip()
-        if not clause or any(x in clause for x in ("不限于", "不要求", "不限制", "无需", "不考虑")):
-            continue
-        is_preferred = any(x in clause for x in ("最好", "优先", "加分", "更好", "期望"))
-        for canonical in _known_skills(clause):
-            target = preferred if is_preferred else required
-            if canonical not in target:
-                target.append(canonical)
+    for sentence in re.split(r"[。；;\n]+", description or ""):
+        prefer_mode = False
+        for raw in re.split(r"[,，、]+", sentence):
+            clause = re.sub(r"【[^】]{0,60}】", "", raw).strip()
+            if not clause or any(x in clause for x in ("不限于", "不要求", "不限制", "无需", "不考虑")):
+                continue
+            if any(x in clause for x in ("最好", "优先", "加分", "更好", "期望")):
+                prefer_mode = True
+            elif any(x in clause for x in ("必须", "硬性", "必要", "至少")):
+                prefer_mode = False
+            for canonical in _known_skills(clause):
+                target = preferred if prefer_mode else required
+                if canonical not in target:
+                    target.append(canonical)
     required = [x for x in required if x not in preferred]
     return {"required": required, "preferred": preferred,
             "disclaimer": "自动识别仅提供初稿，请核实并修改条件后再筛选。"}
