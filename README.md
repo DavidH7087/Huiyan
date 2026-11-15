@@ -170,3 +170,13 @@ Windows 构建会将 Tesseract OCR 与简体中文 / 英文语言数据打进安
 ## Phase 7C：内置中文语义模型的 Windows AI 增强预览版
 
 专用 `Huiyan Windows AI Model Edition Build` 工作流将 FastEmbed 中文 BGE-small 模型与 OCR 一起安装，测试离线推理、EXE 启动与静默安装。与轻量版分开构建，只有 CI 通过才视为可用。详见 [`docs/PHASE7C_REPORT.md`](docs/PHASE7C_REPORT.md)。
+
+## Phase 8：发布前强化与真实格式验收
+
+- 加密备份改为从同一 SQLite 数据库快照获取原始简历清单，避免并发导入导致备份不一致。
+- Windows 构建增加**真正图片式 PDF 的本地 OCR** 冒烟测试，不再只核对 OCR 是否显示 ready。
+- 独立的合成测试工作流通过 FastAPI 上传 **120 DOCX + 120 PDF**，检查入库、筛选结果与原件取回。
+- 验证早期数据库版本升级时保留候选人及招聘记录。
+- 新增需二次确认的单人简历删除，以及 Word 内部压缩炸弹 / 不安全路径防护。
+
+阶段细节及发布验收边界见 [Phase 8 开发报告](docs/PHASE8_RELEASE_HARDENING.md)。仍不得把未签名的预览安装包当作已经完成企业合规审批的商用软件。
