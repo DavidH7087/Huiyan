@@ -215,7 +215,7 @@ def create_app(data_dir:Path|None=None):
     store=Store(root)
     semantic=LocalSemanticService()
     ocr=LocalOcrService()
-    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.9.2-preview')
+    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.9.3-preview')
     if os.environ.get('HUIYAN_DESKTOP_MODE') == '1':
         if os.environ.get('HUIYAN_SESSION_TOKEN'):
             app.add_middleware(DesktopSessionGuard)
@@ -866,7 +866,7 @@ def create_app(data_dir:Path|None=None):
     def export_results(task_id:int,run_id:int):
         data=results(task_id,run_id)
         wb=Workbook(); ws=wb.active;ws.title='筛选结果'
-        ws.append(['候选人','原文件','电话','邮箱','AI辅助分组','证据覆盖率','匹配条件','待核实条件','人工审核','审核备注','需核对排除线索','关键词匹配模式'])
+        ws.append(['候选人','原文件','电话','邮箱','筛选分类','文字覆盖率','匹配条件','待核实条件','人工审核','审核备注','需核对排除线索','关键词匹配模式'])
         def safe(value):
             value=str(value or '')
             return "'"+value if value.startswith(('=','+','-','@')) else value
@@ -877,7 +877,7 @@ def create_app(data_dir:Path|None=None):
             ws.append([safe(row['name']),safe(row['filename']),safe(row['phone']),safe(row['email']),ev['group'],
                        ev['evidence_coverage'],safe(matched),safe(unknown),row['review_status'],safe(row['review_note']),
                        safe('、'.join(c['term'] for c in checks if c['kind']=='excluded' and c['evidence'])),
-                       '精确文字' if data['run']['criteria'].get('match_mode')=='exact' else '智能同义'])
+                       '精确文字' if data['run']['criteria'].get('match_mode')=='exact' else '同义词匹配'])
         ws.freeze_panes='A2'; ws.auto_filter.ref=ws.dimensions
         for col,width in {'A':20,'B':33,'C':19,'D':30,'E':18,'F':14,'G':48,'H':48,'I':19,'J':38,'K':35,'L':18}.items():
             ws.column_dimensions[col].width=width

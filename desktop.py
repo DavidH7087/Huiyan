@@ -144,7 +144,7 @@ def run() -> int:
         import webview
         bridge = DesktopBridge(url, os.environ['HUIYAN_SESSION_TOKEN'])
         window = webview.create_window(
-            '慧眼 · 智能简历筛选',
+            '慧眼 · 简历筛选',
             url + '/?session=' + os.environ['HUIYAN_SESSION_TOKEN'],
             js_api=bridge, width=1220, height=790, min_size=(940, 600))
         bridge.attach_window(window)
