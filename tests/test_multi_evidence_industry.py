@@ -125,3 +125,33 @@ def test_tech_evidence_query_avoids_empty_or_unrelated_work():
     result=evaluate([],['科技行业经验'],pages)
     assert result['matched_count']==0
     assert result['checks'][0]['evidence_matches']==[]
+
+
+def test_docx_textbox_retains_both_technology_internships():
+    """Fake multi-column Word textboxes; no personal candidate data in tests."""
+    import io
+    from docx import Document
+    from docx.oxml import OxmlElement
+    from backend.parsing import extract_pages
+
+    document=Document()
+    parent=document.add_paragraph()
+    box=OxmlElement('w:txbxContent')
+    for line in FICTIONAL_RESUME.splitlines():
+        paragraph=OxmlElement('w:p')
+        run=OxmlElement('w:r')
+        text=OxmlElement('w:t')
+        text.text=line
+        run.append(text)
+        paragraph.append(run)
+        box.append(paragraph)
+    parent._p.append(box)
+    stream=io.BytesIO()
+    document.save(stream)
+    pages=extract_pages('synthetic-layout.docx',stream.getvalue())
+    assert any('无人车产品实习生' in p['text'] for p in pages)
+    result=evaluate([],['科技行业经验'],pages)
+    matches=result['checks'][0]['evidence_matches']
+    assert len(matches)==2
+    assert '无人车' in matches[0]['excerpt']
+    assert all(m['section']=='work' for m in matches)
