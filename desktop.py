@@ -16,6 +16,41 @@ from pathlib import Path
 from urllib.request import urlopen
 
 
+
+class DesktopBridge:
+    """Expose only the explicit, local Excel save action to the desktop UI."""
+
+    def __init__(self, base_url: str, token: str):
+        self._base_url = base_url
+        self._token = token
+        self._window = None
+
+    def attach_window(self, window) -> None:
+        self._window = window
+
+    def export_excel(self, task_id: int, run_id: int) -> dict:
+        if self._window is None:
+            return {'ok': False, 'message': '桌面窗口尚未准备好'}
+        import webview
+        from backend.desktop_export import ExportError, save_excel_file
+        name = f'Huiyan-task-{task_id}-round-{run_id}.xlsx'
+        dialog_type = (webview.FileDialog.SAVE
+                       if hasattr(webview, 'FileDialog') else webview.SAVE_DIALOG)
+        try:
+            chosen = self._window.create_file_dialog(
+                dialog_type, save_filename=name,
+                file_types=('Excel 工作簿 (*.xlsx)',))
+            if not chosen:
+                return {'ok': False, 'cancelled': True}
+            path = chosen[0] if isinstance(chosen, (list, tuple)) else chosen
+            return save_excel_file(self._base_url, self._token,
+                                   task_id, run_id, path)
+        except ExportError as exc:
+            return {'ok': False, 'message': str(exc)}
+        except (OSError, ValueError, RuntimeError):
+            return {'ok': False, 'message': '保存 Excel 出错，请重试或选择其他目录'}
+
+
 def user_data_dir() -> Path:
     override = os.getenv('HUIYAN_DATA_DIR')
     if override:
@@ -107,7 +142,12 @@ def run() -> int:
         if os.getenv('HUIYAN_DESKTOP_SMOKE') == '1':
             return 0
         import webview
-        webview.create_window('慧眼 · 智能简历筛选', url + '/?session=' + os.environ['HUIYAN_SESSION_TOKEN'], width=1220, height=790, min_size=(940, 600))
+        bridge = DesktopBridge(url, os.environ['HUIYAN_SESSION_TOKEN'])
+        window = webview.create_window(
+            '慧眼 · 智能简历筛选',
+            url + '/?session=' + os.environ['HUIYAN_SESSION_TOKEN'],
+            js_api=bridge, width=1220, height=790, min_size=(940, 600))
+        bridge.attach_window(window)
         webview.start(gui='edgechromium')
         return 0
     finally:

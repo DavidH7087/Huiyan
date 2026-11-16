@@ -26,7 +26,8 @@ from .session_security import DesktopSessionGuard
 from .backup import BackupError, MAX_CONTENT, create_encrypted_backup
 from .restore_profiles import stage_restore, profile_status, schedule_original_profile
 from .duplicates import annotate_possible_duplicates, collect_duplicate_groups
-from .engine import split_terms, suggest_conditions, description_clues, evaluate
+from .engine import (split_terms, suggest_conditions, description_clues, evaluate,
+                     dedupe_conditions, expand_description_leads)
 from .retrieval import bm25_relevance
 from .semantic import LocalSemanticService
 from .ocr import LocalOcrService
@@ -132,7 +133,7 @@ def create_app(data_dir:Path|None=None):
     store=Store(root)
     semantic=LocalSemanticService()
     ocr=LocalOcrService()
-    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.9.0-preview')
+    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.9.1-preview')
     if os.environ.get('HUIYAN_DESKTOP_MODE') == '1':
         if os.environ.get('HUIYAN_SESSION_TOKEN'):
             app.add_middleware(DesktopSessionGuard)
@@ -634,14 +635,16 @@ def create_app(data_dir:Path|None=None):
                     ids.append(record['resume_id'])
             terms=task['required']+task['preferred']+task['excluded']
             new=suggest_conditions(payload.query)
-            additional=[x for x in new['required']+new['preferred']+description_clues(payload.query) if x not in terms]
+            additional=expand_description_leads(new['required']+new['preferred']+
+                                                description_clues(payload.query))
             # Free-text descriptions are interpreted as bounded, optional evidence leads;
             # never require an exact match on the entire arbitrary paragraph.
             # Added query terms are soft evidence signals, never new hard criteria automatically.
             required=task['required']
             description_leads=(task['description_leads'] if task['description_leads'] is not None
                                else description_clues(task['description']))
-            preferred=list(dict.fromkeys(task['preferred']+description_leads+additional))
+            required, preferred = dedupe_conditions(required,task['preferred']+
+                expand_description_leads(description_leads)+additional)
             excluded=task['excluded']
             match_mode=task['match_mode']
             matcher=semantic.get_matcher()

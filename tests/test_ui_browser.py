@@ -126,6 +126,19 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
                 page.locator('#uploadFiles').click()
                 page.get_by_text('此任务已有').wait_for()
                 page.locator('#startScreening').click()
+                # Browser download must generate a valid, non-empty Excel file.
+                page.locator('#exportExcel').wait_for(state='visible')
+                with page.expect_download() as excel_transfer:
+                    page.locator('#exportExcel').click()
+                excel_download=excel_transfer.value
+                assert excel_download.suggested_filename.endswith('.xlsx')
+                excel_path=tmp_path/'screening-results.xlsx'
+                excel_download.save_as(excel_path)
+                from openpyxl import load_workbook
+                sheet=load_workbook(excel_path).active
+                assert sheet.max_row>=5
+                assert '候选人' in str(sheet['A1'].value)
+                page.get_by_text('Excel 已交给浏览器下载',exact=False).wait_for()
                 page.locator('#openHistory').click()
                 page.get_by_text('筛选轮次').first.wait_for()
                 assert page.locator('[data-run]').count() >= 1

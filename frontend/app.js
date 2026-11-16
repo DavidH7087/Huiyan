@@ -53,7 +53,7 @@ function resultsPage(){const run=state.result?.run;const rows=state.result?.resu
 const visible=rows.filter(r=>(state.filter==='全部'||(state.filter==='面试名单'?r.review_status==='加入面试名单':r.evaluation.group===state.filter)) && (`${r.name} ${r.filename} ${r.evaluation.checks.map(c=>c.term).join(' ')}`.toLowerCase().includes(state.search.toLowerCase())));
 const selected=visible.find(x=>x.resume_id===state.selected)||visible[0];
 const counts=groupCounts(rows);
-return `<div class="task-header"><div><h1>${e(state.task?.title||'筛选任务')}</h1><div class="subtle small">${e(run?.name||'尚未筛选')} · ${e(fmt(run?.created_at))}</div></div><div class="inline-actions"><button class="btn secondary small" id="uploadMore">+ 添加简历</button><button class="btn secondary small" id="editCriteria">编辑岗位条件</button><button class="btn secondary small" id="toggleArchive">${state.task?.archived?'恢复任务':'归档任务'}</button>${run?`<a class="btn small" href="/api/tasks/${state.task.id}/runs/${run.id}/export">导出 Excel</a>`:''}</div></div>
+return `<div class="task-header"><div><h1>${e(state.task?.title||'筛选任务')}</h1><div class="subtle small">${e(run?.name||'尚未筛选')} · ${e(fmt(run?.created_at))}</div></div><div class="inline-actions"><button class="btn secondary small" id="uploadMore">+ 添加简历</button><button class="btn secondary small" id="editCriteria">编辑岗位条件</button><button class="btn secondary small" id="toggleArchive">${state.task?.archived?'恢复任务':'归档任务'}</button>${run?`<button class="btn small" id="exportExcel">导出 Excel</button>`:''}</div></div>
 <div class="stat-row"><div class="stat"><strong>${rows.length}</strong><span>本轮候选人</span></div>${counts.map(c=>`<div class="stat"><strong>${c.count}</strong><span>${c.name}</span></div>`).join('')}</div>
 <div class="toolbar"><div class="left"><h2>候选人</h2><span class="subtle small">按相关文字证据排序，语义线索需人工核实</span></div><button class="btn secondary small" id="openHistory">筛选历史 (${state.runs.length})</button></div>
 ${run?.criteria?.semantic?.state==='error'?`<div class="notice warn">本地语义分析暂不可用，已改用基础文字匹配。请在设置中检查模型。</div>`:''}${!run?`<div class="empty"><p>还没有筛选结果。</p><button class="btn" id="firstScreening">开始第一轮筛选</button></div>`:`<div class="filters">${['全部','优先查看','需要确认','面试名单'].map(f=>`<button class="filter ${state.filter===f?'active':''}" data-filter="${e(f)}">${e(f)}</button>`).join('')}</div>
@@ -84,7 +84,7 @@ ${r.ocr_pages?`<div class="notice warn">${r.ocr_pages} 页来自扫描件 OCR；
 ${r.parse_warnings&&!r.ocr_pages?`<div class="notice warn">该简历有 ${r.parse_warnings} 页文字不完整，建议核对原件。</div>`:''}
 ${r.evaluation.exclusion_flags?`<div class="notice warn">发现 ${Number(r.evaluation.exclusion_flags)} 项排除线索，<strong>只能由 HR 人工核实</strong>，系统不会自动淘汰。</div>`:''}
 <div class="inline-actions"><button class="btn secondary small" data-preview="${r.resume_id}">阅读简历内容</button><a class="btn secondary small" target="_blank" rel="noopener" href="/api/tasks/${state.task.id}/resumes/${r.resume_id}/original">打开原文件</a></div>
-${checks.map(c=>`<div class="evidence-item"><div class="toolbar" style="margin:0"><strong>${e(c.term)}</strong>${badge(c.state||'待核实',c.state==='有相关文字'?'green':'amber')}</div>${c.evidence?`<p>第 ${Number(c.evidence.page)} 页 · “${e(c.evidence.excerpt)}”</p>`:c.semantic_hint?`<p class="semantic-lead">可能相关的经历（第 ${Number(c.semantic_hint.page)} 页），<strong>需要人工核实</strong>： “${e(c.semantic_hint.excerpt)}”</p>`:'<p>没有找到足够的直接文字证据，不能直接判定候选人不具备该能力。</p>'}</div>`).join('')||'<div class="notice">当前任务没有配置明确筛选条件，请返回修改岗位要求。</div>'}
+${checks.map(c=>`<div class="evidence-item"><div class="toolbar" style="margin:0"><strong>${e(c.term)}</strong>${badge(c.state||'待核实',c.state==='有相关文字'?'green':'amber')}</div>${c.evidence?`<p>第 ${Number(c.evidence.page)} 页 · “${e(c.evidence.excerpt)}”</p>`:c.negative_evidence?`<p class="hint">简历有明确否定表达（第 ${Number(c.negative_evidence.page)} 页），<strong>不属于正向经历证据</strong>： “${e(c.negative_evidence.excerpt)}”</p>`:c.semantic_hint?`<p class="semantic-lead">可能相关的经历（第 ${Number(c.semantic_hint.page)} 页），<strong>需要人工核实</strong>： “${e(c.semantic_hint.excerpt)}”</p>`:'<p>没有找到足够的直接文字证据，不能直接判定候选人不具备该能力。</p>'}</div>`).join('')||'<div class="notice">当前任务没有配置明确筛选条件，请返回修改岗位要求。</div>'}
 <div class="subpanel"><h3>人工审核</h3>${r.review_at_run?`<p class="hint">本轮创建时：${e(r.review_at_run.status)}（历史快照）；下方为当前审核状态。</p>`:'<p class="hint">旧轮次未记录创建时的审核状态；下方显示当前状态。</p>'}<label for="reviewStatus">审核状态</label><select id="reviewStatus">${['未审核','加入面试名单','需要补充资料','暂不推进'].map(v=>`<option value="${e(v)}" ${v===r.review_status?'selected':''}>${e(v)}</option>`).join('')}</select>
 <label for="reviewNote">备注</label><textarea id="reviewNote" style="min-height:74px" placeholder="填写人工审核意见……">${e(r.review_note||'')}</textarea><button class="btn" style="width:100%;margin-top:12px" data-save-review="${r.resume_id}">保存审核</button>
 <p class="hint" style="margin-top:18px">需要响应个人资料删除申请时，可以永久删除该候选人的原文件与全部相关审核记录，历史筛选人数也会相应变化。</p>
@@ -106,11 +106,37 @@ function archivePage(){
     <p class="hint">仅在本机处理。密码不会保存；恢复需要额外磁盘空间。请不要把备份上传到公共 GitHub。</p>
     ${pending}${notice}${switchBack}</div><div class="surface subpanel"><h2>本地数据完整性</h2><p class="hint">仅核对本机数据库及原始简历文件数量，不会上传或删除资料。检查结果不包含候选人姓名。</p><button class="btn secondary small" id="checkIntegrity">检查本地数据</button>${state.diagnostics?`<p class="hint">${e(state.diagnostics.message)} · 简历 ${Number(state.diagnostics.resume_count||0)} · 缺失文件 ${Number(state.diagnostics.missing_files)} · 多余文件 ${Number(state.diagnostics.orphan_files)}</p>`:''}</div>`;
 }
-function previewPage(){if(!state.preview)return '<p>没有已打开的简历</p>';const p=state.preview.profile||{};const edu=(p.education_mentions||[]).map(x=>x.label).join('、')||'未明确提及';const skills=(p.skill_mentions||[]).map(x=>x.label).join('、')||'未明确提及';const years=(p.stated_experience_years||[]).join('、')||'未明确提及';const profileHtml=`<div class="surface" style="margin-bottom:15px"><h2>结构化信息（请核对原文）</h2><p class="hint">学历：${e(edu)} · 技能：${e(skills)} · 明确提及的工作年限：${e(years)}${p.stated_experience_years?.length?' 年':''}</p>${p.experience_years_conflict?'<p class="hint">⚠ 工作年限描述存在差异，请人工核实。</p>':''}${p.needs_source_review?'<p class="hint">⚠ 部分信息来自扫描件或解析存疑，请查看原件。</p>':''}<p class="hint">这些只是文字提及，不代表学历和技能已经验证。</p></div>`;return `<div class="toolbar"><button class="btn secondary" data-go="results">← 返回名单</button><a class="btn small" target="_blank" rel="noopener" href="/api/tasks/${state.task.id}/resumes/${state.preview.id}/original">打开原文件</a></div><div class="page-title"><h1>${e(state.preview.filename)}</h1><p>提取的纯文本，仅供核对。PDF 可通过原文件查看。</p></div>${profileHtml}${state.preview.pages.map(p=>`<div class="surface" style="margin-bottom:15px"><h2 style="margin-bottom:12px">第 ${Number(p.page)} 页</h2><div class="textview">${e(p.text)}</div></div>`).join('')}`}
+function previewPage(){if(!state.preview)return '<p>没有已打开的简历</p>';const p=state.preview.profile||{};const edu=(p.education_mentions||[]).map(x=>x.label).join('、')||'未明确提及';const skills=(p.skill_mentions||[]).map(x=>x.label).join('、')||'未明确提及';const years=(p.stated_experience_years||[]).join('、')||'未明确提及';const totalYears=(p.experience_duration_mentions||[]).filter(v=>v.scope==='total').map(v=>v.years).join('、')||'未明确提及';const roleYears=(p.experience_duration_mentions||[]).filter(v=>v.scope==='specific').map(v=>v.years).join('、')||'未明确提及';const profileHtml=`<div class="surface" style="margin-bottom:15px"><h2>结构化信息（请核对原文）</h2><p class="hint">学历：${e(edu)} · 技能：${e(skills)} · 明确提及的年限：${e(years)}${p.stated_experience_years?.length?' 年':''} · 总工作年限：${e(totalYears)} · 岗位/技能年限：${e(roleYears)}</p>${p.experience_years_conflict?'<p class="hint">⚠ 工作年限描述存在差异，请人工核实。</p>':''}${p.needs_source_review?'<p class="hint">⚠ 部分信息来自扫描件或解析存疑，请查看原件。</p>':''}<p class="hint">这些只是文字提及，不代表学历和技能已经验证。</p></div>`;return `<div class="toolbar"><button class="btn secondary" data-go="results">← 返回名单</button><a class="btn small" target="_blank" rel="noopener" href="/api/tasks/${state.task.id}/resumes/${state.preview.id}/original">打开原文件</a></div><div class="page-title"><h1>${e(state.preview.filename)}</h1><p>提取的纯文本，仅供核对。PDF 可通过原文件查看。</p></div>${profileHtml}${state.preview.pages.map(p=>`<div class="surface" style="margin-bottom:15px"><h2 style="margin-bottom:12px">第 ${Number(p.page)} 页</h2><div class="textview">${e(p.text)}</div></div>`).join('')}`}
 function render(){switch(state.page){case 'home':view.innerHTML=home();break;case 'confirm':view.innerHTML=confirm();break;case 'import':view.innerHTML=importPage();break;case 'tasks':view.innerHTML=allTasks();break;case 'archive':view.innerHTML=archivePage();break;case 'results':view.innerHTML=resultsPage();break;case 'preview':view.innerHTML=previewPage();break;default:view.innerHTML=home();}}
 async function showTask(taskId,asArchive=false){state.task=await api(`/api/tasks/${taskId}`);state.runs=await api(`/api/tasks/${taskId}/runs`);state.reviewEvents=await api(`/api/tasks/${taskId}/review-history`);state.taskChanges=await api(`/api/tasks/${taskId}/changes`);state.historyCompare=null;state.retentionReport=null;state.run=state.runs[0]||null;state.selected=null;state.filter='全部';state.search='';if(state.run){if(asArchive){state.result=await api(`/api/tasks/${taskId}/runs/${state.run.id}/results`);setPage('archive')}else await showRun(state.run.id)}else setPage(asArchive?'archive':'results')}
 async function showRun(runId){state.result=await api(`/api/tasks/${state.task.id}/runs/${runId}/results`);state.run=state.runs.find(r=>r.id===runId)||null;state.selected=state.result.results[0]?.resume_id||null;setPage('results')}
-async function createRun(query='',parent=false,sourceFilter='全部'){const response=await post(`/api/tasks/${state.task.id}/runs`,{name:parent?`补充筛选 · ${query.slice(0,20)||'新条件'}`:'综合筛选',query,scope:parent?'parent':'all',parent_id:parent?state.result?.run?.id:null,source_filter:sourceFilter});state.runs=await api(`/api/tasks/${state.task.id}/runs`);await showRun(response.id);toast(`已保存筛选轮次，包含 ${response.candidate_count} 份简历`)}
+async function exportExcel(){
+  if(!state.task||!state.result?.run)throw new Error('请先选择筛选轮次');
+  const taskId=state.task.id,runId=state.result.run.id;
+  if(window.pywebview?.api?.export_excel){
+    toast('请选择 Excel 文件保存位置');
+    const response=await window.pywebview.api.export_excel(taskId,runId);
+    if(response?.cancelled){toast('已取消 Excel 导出');return}
+    if(!response?.ok)throw new Error(response?.message||'Excel 保存失败');
+    toast('Excel 已保存到所选目录：'+response.filename);
+    return;
+  }
+  toast('正在生成 Excel 文件');
+  const response=await fetch('/api/tasks/'+taskId+'/runs/'+runId+'/export');
+  if(!response.ok)throw new Error('Excel 生成失败（'+response.status+'）');
+  const blob=await response.blob();
+  if(blob.size<150)throw new Error('Excel 文件为空或异常');
+  const buffer=await blob.slice(0,4).arrayBuffer();
+  const signature=new Uint8Array(buffer);
+  if(signature[0]!==0x50||signature[1]!==0x4b)throw new Error('导出内容不是有效的 Excel 文件');
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='Huiyan-task-'+taskId+'-run-'+runId+'.xlsx';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+  toast('Excel 已交给浏览器下载，请查看下载记录');
+}
+async function createRun(query='',parent=false,sourceFilter='全部'){const response=await post(`/api/tasks/${state.task.id}/runs`,{name:parent?`补充筛选 · ${query.slice(0,20)||'新条件'}`:'综合筛选',query,scope:parent?'parent':'all',parent_id:parent?state.result?.run?.id:null,source_filter:sourceFilter});state.runs=await api(`/api/tasks/${state.task.id}/runs`);await showRun(response.id);window.scrollTo({top:0,behavior:'smooth'});toast(`已保存筛选轮次，包含 ${response.candidate_count} 份简历`)}
 nav.forEach(n=>n.addEventListener('click',()=>{const p=n.dataset.view;state.task=null;state.result=null;if(p==='home'){setPage(p);return}withBusy(async()=>{await fetchTasks();if(p==='archive')await fetchProfiles();setPage(p)})}));
 async function importSelectedFiles(files){
  if(!files.length){toast('请先选择简历文件或文件夹');return}
@@ -204,6 +230,7 @@ view.addEventListener('click',ev=>withBusy(async()=>{
   if(target.id==='uploadMore'){state.uploadSummary=null;state.stagedFiles=[];state.retryFiles=[];state.task=await api(`/api/tasks/${state.task.id}`);state.importRecords=await api(`/api/tasks/${state.task.id}/imports`);setPage('import');return;}
   if(target.id==='uploadFiles'){await importSelectedFiles(state.stagedFiles);return;}
   if(target.id==='retryIssues'){await importSelectedFiles(state.retryFiles);return;}
+  if(target.id==='exportExcel'){await exportExcel();return;}
   if(target.id==='startScreening'||target.id==='firstScreening'){await createRun();return;}
   if(target.id==='screenAgain'){const query=el('followupQuery').value.trim();if(!query){toast('请输入补充筛选条件');return}await createRun(query,true,el('followupScope').value);return;}
   if(target.id==='openHistory'){setPage('archive');return;}
