@@ -70,6 +70,8 @@ def test_legacy_filename_names_upgrade_without_damaging_runs_or_reviews(tmp_path
         names={x['name'] for x in result['results']}
         assert names=={'王小明','李小芳'}
         assert all(x['name_source']=='extracted' for x in result['results'])
+        audit=client.get(prefix+'/review-history').json()
+        assert audit[0]['name']=='李小芳'
         assert client.get(prefix+f'/resumes/{first}').json()['name'] == '李小芳'
         assert client.get(prefix+f'/resumes').json()[0]['name'] in names
         assert client.get(prefix+f'/resumes/{first}/original').status_code==404
