@@ -65,6 +65,10 @@ def _heading(text: str) -> str | None:
 def _relevant_work(text: str) -> bool:
     if not _TECH.search(text) or not _COMPANY_ROLE.search(text):
         return False
+    # A sidebar skill list is not work experience without a described role.
+    if not (_NEW_JOB.match(text) or re.search(
+            r'(?:实习|任职|入职|工作中|工作经历|负责|参与|在.{1,20}公司)',text)):
+        return False
     if any(x in text for x in _REQUIREMENTS):
         return False
     # For short negative-only entries, do not present a claimed absence as work.
@@ -98,7 +102,13 @@ def section_passages(pages: list[dict], max_entries: int = 96) -> list[dict]:
             heading = _heading(line)
             if heading is not None:
                 flush()
-                section = heading
+                # Two-column Word CVs can insert a sidebar such as "IT技能"
+                # between one internship and the next. Don't lose the work
+                # section merely because the sidebar heading was flattened.
+                sidebar = heading=='other' and line in (
+                    'IT技能','专业技能','技能特长','主修课程','语言能力','获奖荣誉')
+                if not (section=='work' and sidebar):
+                    section = heading
                 if len(entries) >= max_entries:
                     return entries[:max_entries]
                 continue
