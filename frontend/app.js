@@ -248,6 +248,7 @@ view.addEventListener('click',ev=>withBusy(async()=>{
     if(!name){toast('请输入姓名');return}
     const id=Number(target.dataset.saveName);
     await patch(`/api/tasks/${state.task.id}/resumes/${id}/name`,{name});
+    state.reviewEvents=state.reviewEvents.map(item=>item.resume_id===id?{...item,name}:item);
     state.editingName=null;await showRun(state.result.run.id);state.selected=id;render();
     toast('姓名已更新');return;
   }
