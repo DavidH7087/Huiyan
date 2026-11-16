@@ -129,6 +129,7 @@ def clean_reused_criteria(snapshot:dict, job_description:str,
     genuine_recruiter_skill='招聘' in (suggested['required']+suggested['preferred'])
     stale_recruitment=(
         not genuine_recruiter_skill and
+        (active_required is None or '招聘' not in active_required) and
         ('招聘' in (job_description or '') or
          '招聘' in snapshot.get('description_leads',[]) or
          '招聘' in snapshot.get('supplementary_leads',[]))
