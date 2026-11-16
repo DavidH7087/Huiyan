@@ -105,6 +105,8 @@ def test_name_is_editable_and_not_overwritten_by_later_requests(tmp_path):
         run=client.post(prefix+'/runs',json={}).json()
         assert client.get(prefix+f'/runs/{run["id"]}/results').json()['results'][0]['name']=='张小明'
         assert client.get(prefix+f'/resumes/{row["id"]}').json()['name_source']=='manual'
+        export=client.get(prefix+f'/runs/{run["id"]}/export')
+        assert load_workbook(io.BytesIO(export.content)).active['A2'].value=='张小明'
         with app.state.store.connect() as db:
             assert db.execute('SELECT name_source FROM resumes WHERE id=?',(row['id'],)).fetchone()[0]=='manual'
 
