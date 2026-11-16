@@ -56,7 +56,7 @@ const counts=groupCounts(rows);
 return `<div class="task-header"><div><h1>${e(state.task?.title||'筛选任务')}</h1><div class="subtle small">${e(run?.name||'尚未筛选')} · ${e(fmt(run?.created_at))}</div></div><div class="inline-actions"><button class="btn secondary small" id="uploadMore">+ 添加简历</button><button class="btn secondary small" id="editCriteria">编辑岗位条件</button><button class="btn secondary small" id="toggleArchive">${state.task?.archived?'恢复任务':'归档任务'}</button>${run?`<button class="btn small" id="exportExcel">导出 Excel</button>`:''}</div></div>
 <div class="stat-row"><div class="stat"><strong>${rows.length}</strong><span>本轮候选人</span></div>${counts.map(c=>`<div class="stat"><strong>${c.count}</strong><span>${c.name}</span></div>`).join('')}</div>
 <div class="toolbar"><div class="left"><h2>候选人</h2><span class="subtle small">按相关文字证据排序，语义线索需人工核实</span></div><button class="btn secondary small" id="openHistory">筛选历史 (${state.runs.length})</button></div>
-${run?.criteria?.semantic?.state==='error'?`<div class="notice warn">本地语义分析暂不可用，已改用基础文字匹配。请在设置中检查模型。</div>`:''}${!run?`<div class="empty"><p>还没有筛选结果。</p><button class="btn" id="firstScreening">开始第一轮筛选</button></div>`:`<div class="filters">${['全部','优先查看','需要确认','面试名单'].map(f=>`<button class="filter ${state.filter===f?'active':''}" data-filter="${e(f)}">${e(f)}</button>`).join('')}</div>
+${run?.criteria?.removed_legacy_terms?.length?`<div class="notice">复用时已自动忽略旧版无效参考条件：${e(run.criteria.removed_legacy_terms.join('、'))}。原历史轮次保留不变。</div>`:''}${run?.criteria?.semantic?.state==='error'?`<div class="notice warn">本地语义分析暂不可用，已改用基础文字匹配。请在设置中检查模型。</div>`:''}${!run?`<div class="empty"><p>还没有筛选结果。</p><button class="btn" id="firstScreening">开始第一轮筛选</button></div>`:`<div class="filters">${['全部','优先查看','需要确认','面试名单'].map(f=>`<button class="filter ${state.filter===f?'active':''}" data-filter="${e(f)}">${e(f)}</button>`).join('')}</div>
 <div class="two-col"><div><div style="margin-bottom:13px"><input id="candidateSearch" placeholder="搜索候选人、文件名或条件" value="${e(state.search)}"></div>
 <div class="candidate-list">${visible.map(r=>`<div class="candidate-row ${selected?.resume_id===r.resume_id?'selected':''}" data-candidate="${r.resume_id}"><header><strong>${e(r.name)}</strong>${badge(r.evaluation.group,r.evaluation.group==='优先查看'?'green':'amber')}${r.possible_duplicate_with?.length?badge('疑似重复','amber'):''}</header><p>${e(r.filename)} · 找到 ${r.evaluation.matched_count} 项文字证据${r.evaluation.semantic_hint_count?` · ${r.evaluation.semantic_hint_count} 项语义线索`:''}${r.evaluation.exclusion_flags?` · ${r.evaluation.exclusion_flags} 项排除线索待核实`:''} · ${e(r.review_status)}</p></div>`).join('')||'<div class="empty">当前筛选条件没有候选人。</div>'}</div>
 <div class="surface subpanel"><h2>继续筛选</h2><p class="hint">输入补充条件并创建新轮次，原结果不变。补充条件默认作为优先线索，不自动提高必要门槛。</p><textarea id="followupQuery" placeholder="例如：更关注有制造业客户经验的人" style="min-height:80px"></textarea><label for="followupScope">在这些候选人中继续筛选</label><select id="followupScope"><option value="全部">当前轮次全部人选</option><option value="优先查看">仅优先查看的人选</option><option value="需要确认">仅需要确认的人选</option><option value="面试名单">仅面试名单</option></select><div class="actions" style="margin-top:10px"><button class="btn secondary" id="screenAgain">创建新一轮筛选</button></div></div></div>
@@ -193,14 +193,14 @@ view.addEventListener('click',ev=>withBusy(async()=>{
     if(!window.confirm('恢复该轮的岗位筛选条件？会更新当前岗位配置，但不会删除或修改任何历史轮次。'))return;
     const restored=await post(`/api/tasks/${state.task.id}/runs/${fromId}/restore-criteria`,{});
     state.task=restored.task;state.taskChanges=await api(`/api/tasks/${state.task.id}/changes`);
-    await fetchTasks();render();toast('岗位条件已恢复；可以开始新一轮筛选');return;
+    await fetchTasks();render();toast(restored.removed_legacy_terms?.length?'岗位条件已恢复，忽略旧版无效参考：'+restored.removed_legacy_terms.join('、'):'岗位条件已恢复；可以开始新一轮筛选');return;
   }
   if(target.dataset.replay){
     const originalId=Number(target.dataset.replay);
     if(!window.confirm('按所选历史轮次的条件，针对当前仍保存的全部简历创建新轮次？原轮次和人工审核记录均不变。'))return;
     const created=await post(`/api/tasks/${state.task.id}/runs/${originalId}/replay`,{});
     state.runs=await api(`/api/tasks/${state.task.id}/runs`);state.historyCompare=null;
-    await showRun(created.id);toast('已按历史条件建立新轮次');return;
+    await showRun(created.id);window.scrollTo({top:0,behavior:'smooth'});toast(created.criteria?.removed_legacy_terms?.length?'已复用历史条件，并清理无效参考：'+created.criteria.removed_legacy_terms.join('、'):'已按历史条件建立新轮次');return;
   }
   if(target.dataset.run){await showRun(Number(target.dataset.run));return;}
   if(target.dataset.candidate){state.selected=Number(target.dataset.candidate);render();return;}
