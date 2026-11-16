@@ -1,5 +1,5 @@
 ﻿#define MyAppName "慧眼"
-#define MyAppVersion "0.9.0-preview"
+#define MyAppVersion "0.9.1-preview"
 #define MyAppExe "Huiyan.exe"
 
 [Setup]
