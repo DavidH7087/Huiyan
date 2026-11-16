@@ -118,7 +118,32 @@ function archivePage(){
     <p class="hint">仅在本机处理。密码不会保存；恢复需要额外磁盘空间。请不要把备份上传到公共 GitHub。</p>
     ${pending}${notice}${switchBack}</div><div class="surface subpanel"><h2>本地数据完整性</h2><p class="hint">仅核对本机数据库及原始简历文件数量，不会上传或删除资料。检查结果不包含候选人姓名。</p><button class="btn secondary small" id="checkIntegrity">检查本地数据</button>${state.diagnostics?`<p class="hint">${e(state.diagnostics.message)} · 简历 ${Number(state.diagnostics.resume_count||0)} · 缺失文件 ${Number(state.diagnostics.missing_files)} · 多余文件 ${Number(state.diagnostics.orphan_files)}</p>`:''}</div>`;
 }
-function previewPage(){if(!state.preview)return '<p>没有已打开的简历</p>';const p=state.preview.profile||{};const edu=(p.education_mentions||[]).map(x=>x.label).join('、')||'未明确提及';const skills=(p.skill_mentions||[]).map(x=>x.label).join('、')||'未明确提及';const years=(p.stated_experience_years||[]).join('、')||'未明确提及';const totalYears=(p.experience_duration_mentions||[]).filter(v=>v.scope==='total').map(v=>v.years).join('、')||'未明确提及';const roleYears=(p.experience_duration_mentions||[]).filter(v=>v.scope==='specific').map(v=>v.years).join('、')||'未明确提及';const profileHtml=`<div class="surface" style="margin-bottom:15px"><h2>结构化信息（请核对原文）</h2><p class="hint">学历：${e(edu)} · 技能：${e(skills)} · 明确提及的年限：${e(years)}${p.stated_experience_years?.length?' 年':''} · 总工作年限：${e(totalYears)} · 岗位/技能年限：${e(roleYears)}</p>${p.experience_years_conflict?'<p class="hint">⚠ 工作年限描述存在差异，请人工核实。</p>':''}${p.needs_source_review?'<p class="hint">⚠ 部分信息来自扫描件或解析存疑，请查看原件。</p>':''}<p class="hint">这些只是文字提及，不代表学历和技能已经验证。</p></div>`;return `<div class="toolbar"><button class="btn secondary" data-go="results">← 返回名单</button><a class="btn small" target="_blank" rel="noopener" href="/api/tasks/${state.task.id}/resumes/${state.preview.id}/original">打开原文件</a></div><div class="page-title"><h1>${e(state.preview.filename)}</h1><p>提取的纯文本，仅供核对。PDF 可通过原文件查看。</p></div>${profileHtml}${state.preview.pages.map(p=>`<div class="surface" style="margin-bottom:15px"><h2 style="margin-bottom:12px">第 ${Number(p.page)} 页</h2><div class="textview">${e(p.text)}</div></div>`).join('')}`}
+function previewPage(){
+ if(!state.preview)return '<p class="empty">请选择一份简历。</p>';
+ const doc=state.preview,p=doc.profile||{};
+ const sourceTag=ref=>ref?.evidence?.page||ref?.page||1;
+ const factItems=(items,empty)=>items.length?items.map(item=>`<div class="resume-fact"><strong>${e(item.label)}</strong><span>第 ${Number(sourceTag(item))} 页</span>${item.evidence?.excerpt?`<p>${e(item.evidence.excerpt)}</p>`:''}</div>`).join(''):`<p class="muted-copy">${empty}</p>`;
+ const years=(p.experience_duration_mentions||[]);
+ const totalYears=[...new Set(years.filter(v=>v.scope==='total').map(v=>v.years))];
+ const roleYears=[...new Set(years.filter(v=>v.scope==='specific').map(v=>v.years))];
+ const yearList=arr=>arr.length?arr.map(v=>e(v)+' 年').join('、'):'未提及';
+ const experiences=(p.experience_mentions||[]).slice(0,12);
+ const hasWarnings=doc.pages.some(page=>page.warning||page.source==='ocr');
+ return `<div class="toolbar"><button class="btn secondary" data-go="results">← 返回候选人</button></div>
+ <div class="resume-header"><h1>${e(doc.name)}</h1><p class="subtle">${e(doc.filename)}</p>${doc.name_source==='unknown'?'<p class="quiet-note">姓名尚未识别，请返回候选人列表核对。</p>':''}
+ <div class="resume-contact">${doc.phone?`<span>电话　${e(doc.phone)}</span>`:''}${doc.email?`<span>邮箱　${e(doc.email)}</span>`:''}</div></div>
+ ${hasWarnings?'<p class="quiet-note">部分文字来自扫描识别或存在缺失，请核对内容。</p>':''}
+ <div class="resume-sections">
+   <section class="surface resume-section"><h2>工作经验</h2><div class="resume-stats"><div><span>工作年限</span><strong>${yearList(totalYears)}</strong></div><div><span>岗位相关经验</span><strong>${yearList(roleYears)}</strong></div></div>
+   ${p.experience_years_conflict?'<p class="quiet-note">简历出现不同年限描述，请核对。</p>':''}
+   <h3 class="resume-minor-heading">经历摘录</h3>
+   ${experiences.length?experiences.map(x=>`<div class="resume-quote"><span>第 ${Number(x.page||1)} 页</span><p>${e(x.excerpt)}</p></div>`).join(''):'<p class="muted-copy">未找到明确的工作经历描述。</p>'}</section>
+   <section class="surface resume-section"><h2>学历</h2>${factItems((p.education_mentions||[]).slice(0,10),'未找到学历信息。')}</section>
+   <section class="surface resume-section"><h2>专业技能</h2>${factItems((p.skill_mentions||[]).slice(0,20),'未找到可识别的技能关键词。')}</section>
+ </div>
+ <section class="surface resume-section"><h2>简历文本</h2><p class="subtle small">按原文顺序展示，点击页码可展开或收起。</p>
+ ${doc.pages.map((page,index)=>`<details class="resume-source" ${index===0?'open':''}><summary>第 ${Number(page.page)} 页${page.source==='ocr'?' · 扫描识别':''}</summary>${page.warning?`<p class="quiet-note">${e(page.warning)}</p>`:''}<div class="resume-text">${e(page.text||'未提取到文字')}</div></details>`).join('')}</section>`;
+}
 function render(){switch(state.page){case 'home':view.innerHTML=home();break;case 'confirm':view.innerHTML=confirm();break;case 'import':view.innerHTML=importPage();break;case 'tasks':view.innerHTML=allTasks();break;case 'archive':view.innerHTML=archivePage();break;case 'results':view.innerHTML=resultsPage();break;case 'preview':view.innerHTML=previewPage();break;default:view.innerHTML=home();}}
 async function showTask(taskId,asArchive=false){state.task=await api(`/api/tasks/${taskId}`);state.runs=await api(`/api/tasks/${taskId}/runs`);state.reviewEvents=await api(`/api/tasks/${taskId}/review-history`);state.taskChanges=await api(`/api/tasks/${taskId}/changes`);state.historyCompare=null;state.retentionReport=null;state.run=state.runs[0]||null;state.selected=null;state.filter='全部';state.search='';if(state.run){if(asArchive){state.result=await api(`/api/tasks/${taskId}/runs/${state.run.id}/results`);setPage('archive')}else await showRun(state.run.id)}else setPage(asArchive?'archive':'results')}
 async function showRun(runId){state.result=await api(`/api/tasks/${state.task.id}/runs/${runId}/results`);state.run=state.runs.find(r=>r.id===runId)||null;state.selected=state.result.results[0]?.resume_id||null;setPage('results')}
