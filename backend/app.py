@@ -115,6 +115,67 @@ def get_run(cn,task_id,run_id):
     return row_dict(row)
 
 
+
+def clean_reused_criteria(snapshot:dict, job_description:str,
+                          active_required:list[str]|None=None) -> dict:
+    """Prepare NEW rounds from old criteria without changing historical snapshots.
+
+    Earlier versions sometimes promoted the *verb* 招聘 from '招聘B2B销售'
+    to a candidate skill. A hard requirement is only removed if the old
+    automatic clues explicitly prove that source and it is absent from
+    the currently confirmed mandatory criteria. All changes are reported.
+    """
+    suggested=suggest_conditions(job_description or '')
+    genuine_recruiter_skill='招聘' in (suggested['required']+suggested['preferred'])
+    stale_recruitment=(
+        not genuine_recruiter_skill and
+        (active_required is None or '招聘' not in active_required) and
+        ('招聘' in (job_description or '') or
+         '招聘' in snapshot.get('description_leads',[]) or
+         '招聘' in snapshot.get('supplementary_leads',[]))
+    )
+    def retain(term):
+        return not (stale_recruitment and term.strip()=='招聘')
+
+    original_required=list(snapshot.get('required',[]))
+    legacy_optional=list(snapshot.get('preferred',[]))
+    explicit_optional=list(snapshot.get('task_preferred',[]))
+    raw_description=list(snapshot.get('description_leads',[]))
+    raw_supplementary=list(snapshot.get('supplementary_leads',[]))
+    # Old parsing bugs also inserted 招聘 into *required* before HR corrected
+    # the task. Do not override a deliberately configured current requirement.
+    invalid_old_required=(stale_recruitment and
+        '招聘' in (raw_description+raw_supplementary) and
+        active_required is not None and '招聘' not in active_required)
+    removed_required=[term for term in original_required
+                      if invalid_old_required and term.strip()=='招聘']
+    original_required=[term for term in original_required
+                       if not (invalid_old_required and term.strip()=='招聘')]
+    normalized_description=expand_description_leads(raw_description)
+    normalized_supplementary=expand_description_leads(raw_supplementary)
+    # Keep an explicitly chosen HR-recruitment requirement, not a generic
+    # '招聘' hiring instruction. This includes older auto-generated snapshots.
+    if genuine_recruiter_skill:
+        if '招聘' in raw_description:
+            normalized_description.append('招聘')
+        if '招聘' in raw_supplementary:
+            normalized_supplementary.append('招聘')
+    combined=[*explicit_optional,*normalized_description,*normalized_supplementary,*legacy_optional]
+    removed=[*removed_required,*[term for term in combined if not retain(term)]]
+    filtered=[term for term in combined if retain(term)]
+    required,preferred=dedupe_conditions(original_required,filtered)
+    return {
+        **snapshot,
+        'required':required,
+        'preferred':preferred,
+        'description_leads':dedupe_conditions([],normalized_description)[1],
+        'supplementary_leads':dedupe_conditions([],normalized_supplementary)[1],
+        'task_preferred':dedupe_conditions([], [term for term in explicit_optional if retain(term)])[1],
+        'removed_legacy_terms':list(dict.fromkeys(removed)),
+        'condition_cleanup':'legacy_optional_v1'
+    }
+
+
 def load_resume_profile(cn,resume_id:int,pages:list[dict]) -> dict:
     cached=cn.execute('SELECT extractor_version,profile_json FROM resume_profiles WHERE resume_id=?',
                       (resume_id,)).fetchone()
@@ -133,7 +194,7 @@ def create_app(data_dir:Path|None=None):
     store=Store(root)
     semantic=LocalSemanticService()
     ocr=LocalOcrService()
-    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.9.1-preview')
+    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.9.2-preview')
     if os.environ.get('HUIYAN_DESKTOP_MODE') == '1':
         if os.environ.get('HUIYAN_SESSION_TOKEN'):
             app.add_middleware(DesktopSessionGuard)
@@ -544,18 +605,22 @@ def create_app(data_dir:Path|None=None):
             current=get_task(cn,task_id)
             run=get_run(cn,task_id,run_id)
             snapshot=json.loads(run['criteria_json'])
+            cleaned=clean_reused_criteria(snapshot,current['description'],
+                                          current['required'])
             prior=task_audit_snapshot(current)
-            derived=set(snapshot.get('description_leads',[])+snapshot.get('supplementary_leads',[]))
-            manual_preferred=snapshot.get('task_preferred',
-                                           [term for term in snapshot.get('preferred',[])
-                                            if term not in derived])
+            # Only explicitly configured preferred terms become persistent task
+            # settings; temporary lead suggestions remain reference-only.
+            manual_preferred=(
+                cleaned['task_preferred'] if 'task_preferred' in snapshot
+                else cleaned['preferred']
+            )
             updates={
-                'required':snapshot.get('required',[]),
+                'required':cleaned['required'],
                 'preferred':manual_preferred,
-                'excluded':snapshot.get('excluded',[]),
-                'match_mode':snapshot.get('match_mode','aliases'),
-                'description_leads':snapshot.get('description_leads',[]),
-                'term_modes':snapshot.get('term_modes',{}),
+                'excluded':cleaned.get('excluded',[]),
+                'match_mode':cleaned.get('match_mode','aliases'),
+                'description_leads':cleaned['description_leads'],
+                'term_modes':cleaned.get('term_modes',{}),
             }
             cn.execute("""UPDATE tasks SET required=?,preferred=?,excluded=?,match_mode=?,
                 description_leads=?,term_modes=? WHERE id=?""",
@@ -568,6 +633,7 @@ def create_app(data_dir:Path|None=None):
                     VALUES(?,?,?,?)""",(task_id,f'restore_round:{run_id}',
                                         dumps(prior),dumps(task_audit_snapshot(restored))))
             return {'task':restored,'restored_from':run_id,
+                    'removed_legacy_terms':cleaned['removed_legacy_terms'],
                     'note':'岗位条件已恢复；既有筛选轮次和结果不受影响。'}
 
     @app.get('/api/tasks/{task_id}/runs/compare')
@@ -694,13 +760,16 @@ def create_app(data_dir:Path|None=None):
         """
         with store.connect() as cn:
             old=get_run(cn,task_id,run_id)
+            task=get_task(cn,task_id)
             original=json.loads(old['criteria_json'])
-            required=original.get('required',[])
-            preferred=original.get('preferred',[])
-            excluded=original.get('excluded',[])
-            mode=original.get('match_mode','aliases')
-            term_modes=original.get('term_modes',{})
-            criteria={**original,'replay_of':run_id,'source_filter':'全部',
+            cleaned=clean_reused_criteria(original,task['description'],
+                                          task['required'])
+            required=cleaned['required']
+            preferred=cleaned['preferred']
+            excluded=cleaned.get('excluded',[])
+            mode=cleaned.get('match_mode','aliases')
+            term_modes=cleaned.get('term_modes',{})
+            criteria={**cleaned,'replay_of':run_id,'source_filter':'全部',
                       'replay_scope':'all_current_resumes'}
             name=('复用 · '+old['name'])[:100]
             created=cn.execute("""INSERT INTO runs(task_id,parent_id,name,query,scope,criteria_json)
