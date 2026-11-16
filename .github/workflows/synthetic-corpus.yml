@@ -12,6 +12,9 @@ on:
     paths:
       - 'testdata/synthetic/**'
       - 'backend/app.py'
+      - 'backend/engine.py'
+      - 'backend/semantic.py'
+      - 'backend/industry_context.py'
       - 'backend/parsing.py'
       - 'backend/profile.py'
       - '.github/workflows/synthetic-corpus.yml'
