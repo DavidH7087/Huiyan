@@ -160,7 +160,7 @@ async function exportExcel(){
   }
   toast('正在生成 Excel 文件');
   const response=await fetch('/api/tasks/'+taskId+'/runs/'+runId+'/export');
-  if(!response.ok)throw new Error('Excel 生成失败，错误码 '+response.status+'）');
+  if(!response.ok)throw new Error('Excel 生成失败，错误码 '+response.status);
   const blob=await response.blob();
   if(blob.size<150)throw new Error('Excel 文件为空或异常');
   const buffer=await blob.slice(0,4).arrayBuffer();
