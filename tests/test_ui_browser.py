@@ -78,6 +78,14 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
                 page.wait_for_function('!document.querySelector("#startScreening").disabled')
                 page.locator('#startScreening').click()
                 page.locator('.candidate-list').get_by_text('张三').wait_for()
+                # Review the actual matching sentence inside the readable résumé.
+                page.locator('.candidate-list').get_by_text('张三',exact=True).click()
+                page.locator('[data-source-index]').first.click()
+                page.get_by_role('heading',name='简历文本').wait_for()
+                assert page.locator('#focusedSource[open]').count()==1
+                assert page.locator('#focusedSource .resume-text').inner_text()
+                assert page.locator('a[href*="/original"]').count()==0
+                page.locator('button[data-go="results"]').click()
                 page.locator('[data-candidate]').first.click()
                 page.locator('[data-preview]').click()
                 page.get_by_role('heading',name='工作经验').wait_for()
