@@ -142,8 +142,15 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
                 }""")
                 page.get_by_text('已选择 1 个文件').wait_for()
                 page.locator('#uploadFiles').click()
-                page.get_by_text('此任务已有').wait_for()
+                # Import is asynchronous: the old '此任务已有' label may still be
+                # visible while a new upload is in progress. Wait for the count.
+                page.wait_for_function("""() => {
+                    const line=document.querySelector('.toolbar')?.innerText||'';
+                    return line.includes('4 份简历') &&
+                        !document.querySelector('#startScreening')?.disabled;
+                }""")
                 page.locator('#startScreening').click()
+                page.get_by_text('已保存筛选轮次',exact=False).wait_for()
                 # Browser download must generate a valid, non-empty Excel file.
                 page.locator('#exportExcel').wait_for(state='visible')
                 with page.expect_download() as excel_transfer:
