@@ -179,7 +179,7 @@ def _contains_alias(text: str, alias: str) -> bool:
 def find_evidences(term: str, pages: list[dict],
                    match_mode: str = 'aliases', limit: int = 3) -> list[dict]:
     """Return independent excerpts without counting one requirement repeatedly."""
-    if is_technology_experience(term):
+    if match_mode!='exact' and is_technology_experience(term):
         return industry_evidence(term,pages,limit)['work']
     aliases = sorted(([term] if match_mode == 'exact' else alias_options(term)),
                      key=len,reverse=True)
@@ -280,7 +280,9 @@ def evaluate(required: list[str], preferred: list[str], pages: list[dict], seman
     for term, kind in [(x, "required") for x in required]+[(x, "preferred") for x in preferred]:
         evidence_matches=find_evidences(term,pages,(term_modes or {}).get(term,match_mode))
         evidence=evidence_matches[0] if evidence_matches else None
-        background=industry_evidence(term,pages)['background'] if is_technology_experience(term) else []
+        mode=(term_modes or {}).get(term,match_mode)
+        background=(industry_evidence(term,pages)['background']
+                    if mode!='exact' and is_technology_experience(term) else [])
         checks.append({"term":term,"kind":kind,"state":("OCR文字待核实" if evidence and evidence.get("source")=="ocr" else "有相关文字" if evidence else "待核实"),
                        "evidence":evidence,"evidence_matches":evidence_matches,
                        "background_evidence":background,"semantic_hint":None,
@@ -308,6 +310,8 @@ def evaluate(required: list[str], preferred: list[str], pages: list[dict], seman
             related=[]
             negative=None
             for hint in hints[check['term']]:
+                if (term_modes or {}).get(check['term'],match_mode)=='exact':
+                    continue
                 excerpt=str(hint.get('excerpt',''))
                 if _negative_semantic_excerpt(check['term'],excerpt):
                     if negative is None:
