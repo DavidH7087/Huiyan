@@ -458,6 +458,7 @@ def create_app(data_dir:Path|None=None):
     def review_history(task_id:int):
         with store.connect() as cn:
             get_task(cn,task_id)
+            refresh_resume_names(cn,task_id)
             return [dict(row) for row in cn.execute(
                 """SELECT e.id,e.resume_id,r.name,e.status,e.note,e.occurred_at
                    FROM review_events e LEFT JOIN resumes r ON r.id=e.resume_id AND r.task_id=e.task_id
@@ -547,6 +548,7 @@ def create_app(data_dir:Path|None=None):
         """Preview old personal data; never expire or delete candidates automatically."""
         with store.connect() as cn:
             get_task(cn,task_id)
+            refresh_resume_names(cn,task_id)
             cutoff=f'-{days} days'
             total=cn.execute("""SELECT COUNT(*) FROM resumes
                 WHERE task_id=? AND imported_at < datetime('now',?)""",
