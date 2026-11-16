@@ -238,6 +238,8 @@ _NOT_PERSON_NAMES = (
     '姓 名', '姓名', '简历', '候选人', '应聘者', '应聘人', '销售经理',
     '招聘专员', '产品经理', '开发工程师', '软件工程师', '信息技术',
     '实习经历', '自我评价', '个人评价', '职业经历', '个人信息',
+    '负责', '熟悉', '掌握', '参与', '项目', '教育', '学历', '技能',
+    '工作', '管理', '开发', '背景', '简介', '概况', '摘要',
 )
 
 
@@ -259,6 +261,13 @@ def _person_name(raw: str) -> str:
     else:
         return ''
     if len(value) > 30 or value in _NOT_PERSON_NAMES:
+        return ''
+    if value.casefold() in {
+        'resume', 'curriculum vitae', 'work experience', 'sales manager',
+        'sales developer', 'customer development', 'software engineer',
+        'professional summary', 'personal profile', 'personal information',
+        'contact information', 'project experience',
+    }:
         return ''
     if any(s in value for s in (
         '简历', '招聘', '岗位', '工作', '经验', '求职', '经理', '客户',
