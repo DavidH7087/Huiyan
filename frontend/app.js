@@ -1,7 +1,7 @@
 const view = document.getElementById('view');
 const nav = [...document.querySelectorAll('[data-view]')];
 const state = {
-  page:'home', tasks:[], task:null, runs:[], run:null, result:null, selected:null,
+  page:'home', tasks:[], task:null, runs:[], run:null, result:null, selected:null, editingName:null,
   description:'', descriptionLeads:[], required:[], preferred:[], excluded:[], matchMode:'aliases', termModes:{}, title:'', editing:false, filter:'全部', busy:false, preview:null,
   currentText:null, uploadSummary:null, importRecords:[], stagedFiles:[], retryFiles:[], historyCompare:null, retentionReport:null, diagnostics:null, reviewEvents:[], taskChanges:[], search:'', health:null, profileStatus:null, recoveryNotice:'',
 };
@@ -78,17 +78,29 @@ function comparisonMarkup(){
  <p class="hint">分组变动：${report.changed.length?report.changed.slice(0,12).map(v=>e(v.name+'：'+v.before+' → '+v.after)).join('；'):'无'}</p>
  <p class="hint">仅展示前 100 项变化。历史记录不会被修改。</p></div>`;
 }
-function candidatePanel(r){const checks=r.evaluation.checks;return `<h3>${e(r.name)}</h3><div class="file-details">${e(r.filename)}<br>证据覆盖率：${r.evaluation.evidence_coverage}%（并非能力分数）</div>
-${r.possible_duplicate_with?.length?`<div class="notice warn">发现 ${r.possible_duplicate_with.length} 份联系方式相同的简历（ID：${r.possible_duplicate_with.map(x=>Number(x)).join("、")}），可能是同一人的不同版本。原始文件均保留，请人工核对。</div>`:''}
-${r.ocr_pages?`<div class="notice warn">${r.ocr_pages} 页来自扫描件 OCR；识别文字可能出错，请打开原简历核对。</div>`:''}
-${r.parse_warnings&&!r.ocr_pages?`<div class="notice warn">该简历有 ${r.parse_warnings} 页文字不完整，建议核对原件。</div>`:''}
-${r.evaluation.exclusion_flags?`<div class="notice warn">发现 ${Number(r.evaluation.exclusion_flags)} 项排除线索，<strong>只能由 HR 人工核实</strong>，系统不会自动淘汰。</div>`:''}
-<div class="inline-actions"><button class="btn secondary small" data-preview="${r.resume_id}">阅读简历内容</button><a class="btn secondary small" target="_blank" rel="noopener" href="/api/tasks/${state.task.id}/resumes/${r.resume_id}/original">打开原文件</a></div>
-${checks.map(c=>`<div class="evidence-item"><div class="toolbar" style="margin:0"><strong>${e(c.term)}</strong>${badge(c.state||'待核实',c.state==='有相关文字'?'green':'amber')}</div>${c.evidence?`<p>第 ${Number(c.evidence.page)} 页 · “${e(c.evidence.excerpt)}”</p>`:c.negative_evidence?`<p class="hint">简历有明确否定表达（第 ${Number(c.negative_evidence.page)} 页），<strong>不属于正向经历证据</strong>： “${e(c.negative_evidence.excerpt)}”</p>`:c.semantic_hint?`<p class="semantic-lead">可能相关的经历（第 ${Number(c.semantic_hint.page)} 页），<strong>需要人工核实</strong>： “${e(c.semantic_hint.excerpt)}”</p>`:'<p>没有找到足够的直接文字证据，不能直接判定候选人不具备该能力。</p>'}</div>`).join('')||'<div class="notice">当前任务没有配置明确筛选条件，请返回修改岗位要求。</div>'}
-<div class="subpanel"><h3>人工审核</h3>${r.review_at_run?`<p class="hint">本轮创建时：${e(r.review_at_run.status)}（历史快照）；下方为当前审核状态。</p>`:'<p class="hint">旧轮次未记录创建时的审核状态；下方显示当前状态。</p>'}<label for="reviewStatus">审核状态</label><select id="reviewStatus">${['未审核','加入面试名单','需要补充资料','暂不推进'].map(v=>`<option value="${e(v)}" ${v===r.review_status?'selected':''}>${e(v)}</option>`).join('')}</select>
-<label for="reviewNote">备注</label><textarea id="reviewNote" style="min-height:74px" placeholder="填写人工审核意见……">${e(r.review_note||'')}</textarea><button class="btn" style="width:100%;margin-top:12px" data-save-review="${r.resume_id}">保存审核</button>
-<p class="hint" style="margin-top:18px">需要响应个人资料删除申请时，可以永久删除该候选人的原文件与全部相关审核记录，历史筛选人数也会相应变化。</p>
-<button class="btn secondary small" id="deleteCandidate" data-delete-candidate="${r.resume_id}" data-filename="${e(r.filename)}">永久删除这位候选人</button></div>`}
+function candidatePanel(r){
+ const checks=r.evaluation.checks||[];
+ const considered=checks.filter(c=>c.kind!=='excluded');
+ const matched=considered.filter(c=>!!c.evidence).length;
+ const editing=state.editingName===r.resume_id;
+ const unconfirmed=r.name_source==='unknown';
+ return `<div class="person-panel-head"><div><h3>${e(r.name)}</h3><p class="person-filename">${e(r.filename)}</p></div><button class="btn ghost small" data-edit-name="${r.resume_id}">修改姓名</button></div>
+ ${unconfirmed?'<p class="quiet-note">未从简历中找到姓名，请核对后填写。</p>':''}
+ ${editing?`<div class="name-editor"><label for="candidateNameInput">应聘人姓名</label><input id="candidateNameInput" maxlength="60" value="${e(unconfirmed?'':r.name)}" placeholder="请输入简历上的姓名"><div class="inline-actions"><button class="btn small" data-save-name="${r.resume_id}">保存姓名</button><button class="btn secondary small" id="cancelEditName">取消</button></div></div>`:''}
+ <div class="candidate-quick-info">${r.phone?`<span>电话：${e(r.phone)}</span>`:''}${r.email?`<span>邮箱：${e(r.email)}</span>`:''}</div>
+ <div class="evidence-summary"><span>文字匹配 <strong>${matched} / ${considered.length}</strong></span><span>覆盖率 <strong>${Number(r.evaluation.evidence_coverage)}%</strong></span></div>
+ ${r.possible_duplicate_with?.length?`<p class="quiet-note">发现 ${r.possible_duplicate_with.length} 份联系方式相同的简历，可在完整资料中核对。</p>`:''}
+ ${r.ocr_pages||r.parse_warnings?'<p class="quiet-note">部分内容可能识别不完整，请留意下方原文。</p>':''}
+ ${r.evaluation.exclusion_flags?`<p class="quiet-note">发现 ${Number(r.evaluation.exclusion_flags)} 项排除线索，请核对具体内容。</p>`:''}
+ <button class="btn secondary" data-preview="${r.resume_id}">查看简历详情</button>
+ <div class="section-divider"><h3>条件匹配</h3></div>
+ ${checks.map(c=>`<div class="evidence-item"><div class="toolbar" style="margin:0"><strong>${e(c.term)}</strong>${badge(c.evidence?'找到文字':c.negative_evidence?'否定表述':c.semantic_hint?'相近内容':'未找到',c.evidence?'green':'neutral')}</div>${c.evidence?`<p class="proof-source">第 ${Number(c.evidence.page)} 页</p><p class="proof-excerpt">${e(c.evidence.excerpt)}</p>`:c.negative_evidence?`<p class="proof-source">否定表述 · 第 ${Number(c.negative_evidence.page)} 页</p><p class="proof-excerpt">${e(c.negative_evidence.excerpt)}</p>`:c.semantic_hint?`<p class="proof-source">相近内容 · 第 ${Number(c.semantic_hint.page)} 页</p><p class="proof-excerpt">${e(c.semantic_hint.excerpt)}</p>`:'<p class="muted-copy">未找到直接相关的文字。</p>'}</div>`).join('')||'<p class="muted-copy">尚未设置筛选条件。</p>'}
+ <div class="subpanel"><h3>审核记录</h3>${r.review_at_run?`<p class="hint">本轮创建时：${e(r.review_at_run.status)} · 当前：${e(r.review_status)}</p>`:'<p class="hint">本轮未保存早期审核状态。</p>'}
+ <label for="reviewStatus">审核状态</label><select id="reviewStatus">${['未审核','加入面试名单','需要补充资料','暂不推进'].map(v=>`<option value="${e(v)}" ${v===r.review_status?'selected':''}>${e(v)}</option>`).join('')}</select>
+ <label for="reviewNote">备注</label><textarea id="reviewNote" style="min-height:74px" placeholder="填写审核意见">${e(r.review_note||'')}</textarea>
+ <button class="btn" style="width:100%;margin-top:12px" data-save-review="${r.resume_id}">保存审核</button>
+ <details class="subtle-action"><summary>资料管理</summary><p class="hint">删除后无法恢复，相关筛选记录也会更新。</p><button class="btn secondary small" id="deleteCandidate" data-delete-candidate="${r.resume_id}" data-filename="${e(r.filename)}">永久删除该应聘人</button></details></div>`;
+}
 function roundsMarkup(){return state.runs.map((r,i)=>`<div class="round-row" data-run="${r.id}"><span class="round-no">${state.runs.length-i}</span><div class="grow"><strong>${e(r.name)}</strong><p>${e(fmt(r.created_at))} · ${r.candidate_count} 人 · ${r.parent_id?'基于上一轮':'全量筛选'}${r.criteria?.source_filter&&r.criteria.source_filter!=='全部'?' · '+e(r.criteria.source_filter):''}</p></div>${state.result?.run?.id===r.id?badge('当前轮次','green'):'<span class="subtle small">查看 ›</span>'}<button class="btn secondary small" data-compare="${r.id}" aria-label="与当前轮次比较">对比</button><button class="btn secondary small" data-replay="${r.id}" aria-label="复用本轮条件">复用条件</button><button class="btn secondary small" data-restore-criteria="${r.id}" aria-label="恢复本轮岗位条件">恢复条件</button></div>`).join('')||'<div class="empty">暂无筛选记录</div>'}
 function baseArchivePage(){if(!state.task){return allTasks("all") + (state.health?.backup_available?`<div class="surface subpanel"><h2>加密备份招聘档案</h2><p class="hint">导出全部招聘任务、审核记录及原始简历。请妥善保存备份密码；遗失后无法恢复。</p><div class="actions" style="margin-top:12px"><input id="backupPassword" type="password" autocomplete="new-password" placeholder="设置至少 12 字符的备份密码" style="max-width:330px" aria-label="备份密码"><button class="btn secondary" id="createBackup">创建并下载加密备份</button></div><p class="hint">仅限本机 Windows 版；本备份文件含个人信息，切勿发送到公共仓库。</p></div>`:'')}return `<div class="toolbar"><button class="btn secondary small" id="archiveBack">← 所有任务</button><button class="btn small" data-go="results">查看候选人</button></div><div class="page-title"><h1>${e(state.task.title)} · 筛选档案</h1><p>每一次筛选都会单独记录条件和结果，不覆盖历史。</p></div><div class="surface"><h2 style="margin-bottom:18px">筛选轮次</h2><div class="actions" style="margin-bottom:14px"><label for="retentionDays">待复核资料期限</label><select id="retentionDays"><option value="180">180 天</option><option value="365" selected>365 天</option><option value="730">730 天</option></select><button class="btn secondary small" id="checkRetention">检查旧简历</button><button class="btn secondary small" id="editCriteria">编辑岗位条件</button></div>${retentionMarkup()}${roundsMarkup()}${comparisonMarkup()}<details class="audit-log"><summary>岗位条件修改记录（最近 200 条）</summary>${(state.taskChanges||[]).map(v=>`<p>${e(fmt(v.occurred_at))} · ${e(v.action.startsWith('restore_round:')?'恢复历史条件':'编辑岗位条件')} · 必须：${e((v.previous.required||[]).join('、')||'无')} → ${e((v.next.required||[]).join('、')||'无')}</p>`).join('')||'<p>暂无修改记录</p>'}</details><details class="audit-log"><summary>人工审核操作记录（最近 500 条）</summary>${(state.reviewEvents||[]).map(v=>`<p>${e(fmt(v.occurred_at))} · ${e(v.name||'候选人')} · ${e(v.status)}${v.note?' · '+e(v.note):''}</p>`).join('')||'<p>暂无操作记录</p>'}</details><div class="notice">筛选依据保留历史快照；人工审核当前状态可更新，每轮创建时的审核状态独立记录。</div>${state.task.archived?'<div class="actions" style="margin-top:16px"><button class="btn secondary small" id="deleteArchivedTask">永久删除任务及全部简历（不可恢复）</button></div>':''}</div>`}
 function archivePage(){
