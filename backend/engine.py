@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import re
 from .evidence_context import TRAINING, rejection_reason
+from .industry_context import industry_evidence, is_technology_experience
 
 # The vocabulary improves recall for a small starter set of Chinese job descriptions.
 # It is not a complete occupational ontology or a semantic language model.
@@ -22,6 +23,8 @@ ALIASES: dict[str, tuple[str, ...]] = {
     "招聘": ("招聘", "人才招聘", "候选人面试", "招聘渠道"),
     "库存管理": ("库存管理", "盘点", "出入库", "仓储管理", "erp"),
     "团队管理": ("团队管理", "管理团队", "带领团队", "下属管理", "部门负责人"),
+    "科技行业经验": ("科技领域", "科技领域经验", "科技行业", "科技行业经验",
+                 "技术行业经验", "科技企业经验", "高科技领域", "高科技行业"),
 }
 
 
@@ -173,41 +176,57 @@ def _contains_alias(text: str, alias: str) -> bool:
     return token in normalise(text)
 
 
-def find_evidence(term: str, pages: list[dict], match_mode: str = 'aliases') -> dict | None:
-    # Exact disables synonym expansion but still normalises case/whitespace.
-    aliases = sorted(([term] if match_mode == 'exact' else alias_options(term)), key=len, reverse=True)
+def find_evidences(term: str, pages: list[dict],
+                   match_mode: str = 'aliases', limit: int = 3) -> list[dict]:
+    """Return independent excerpts without counting one requirement repeatedly."""
+    if match_mode!='exact' and is_technology_experience(term):
+        return industry_evidence(term,pages,limit)['work']
+    aliases = sorted(([term] if match_mode == 'exact' else alias_options(term)),
+                     key=len,reverse=True)
+    found: list[dict] = []
+    seen: set[str] = set()
     for page in pages:
-        original = page.get("text", "")
-        sentences = re.split(r"[。！？!?\n；;]+", original)
+        sentences=re.split(r'[。！？!?\n；;]+',page.get('text',''))
         for sentence in sentences:
             if not sentence.strip():
                 continue
-            # Context across comma-separated keyword lists matters: '课程中提到
-            # 库存管理、ERP' is training, not work experience. Conversely, a '没有'
-            # in the next clause cannot negate an unrelated preceding skill.
-            strong_practice = ('独立负责', '独立承担', '工作中使用', '实际使用',
-                               '实战', '开发过', '项目中使用', '项目经验',
-                               '上线', '交付', '负责', '搭建', '实现', '实施')
-            training_only = (any(word in sentence for word in TRAINING)
-                             and not any(word in sentence for word in strong_practice))
+            strong_practice=('独立负责','独立承担','工作中使用','实际使用',
+                             '实战','开发过','项目中使用','项目经验',
+                             '上线','交付','负责','搭建','实现','实施')
+            training_only=(any(word in sentence for word in TRAINING)
+                           and not any(word in sentence for word in strong_practice))
             if training_only:
                 continue
-            clauses = re.split(r"[，,]+", sentence)
-            for clause in clauses:
+            for clause in re.split(r'[，,]+',sentence):
                 if not clause.strip():
                     continue
                 for alias in aliases:
-                    if (not _contains_alias(clause, alias)
-                            or _looks_negated(clause, alias)
-                            or rejection_reason(clause, alias)):
+                    if (not _contains_alias(clause,alias)
+                            or _looks_negated(clause,alias)
+                            or rejection_reason(clause,alias)):
                         continue
-                    idx = clause.lower().find(alias.lower())
-                    excerpt = (clause[max(0, idx-70):idx+len(alias)+140]
-                               if idx >= 0 else clause[:220])
-                    excerpt = re.sub(r"\s+", " ", excerpt).strip()
-                    return {"term": term, "matched_text": alias, "page": page.get("page", 1),
-                            "excerpt": excerpt, "source": page.get("source", "text")}
-    return None
+                    idx=clause.lower().find(alias.lower())
+                    excerpt=(clause[max(0,idx-70):idx+len(alias)+140]
+                             if idx>=0 else clause[:220])
+                    excerpt=re.sub(r'\s+',' ',excerpt).strip()
+                    key=normalise(excerpt)
+                    if key and key not in seen:
+                        found.append({'term':term,'matched_text':alias,
+                                      'page':page.get('page',1),
+                                      'excerpt':excerpt,
+                                      'source':page.get('source','text')})
+                        seen.add(key)
+                    break
+                if len(found)>=limit:
+                    return found
+    return found
+
+
+def find_evidence(term: str, pages: list[dict],
+                  match_mode: str = 'aliases') -> dict | None:
+    """Compatibility API: the first evidence remains available."""
+    matches=find_evidences(term,pages,match_mode,limit=1)
+    return matches[0] if matches else None
 
 
 def description_clues(description: str, limit: int = 8) -> list[str]:
@@ -259,33 +278,62 @@ def evaluate(required: list[str], preferred: list[str], pages: list[dict], seman
     checks=[]
     excluded=excluded or []
     for term, kind in [(x, "required") for x in required]+[(x, "preferred") for x in preferred]:
-        evidence=find_evidence(term,pages,(term_modes or {}).get(term,match_mode))
+        evidence_matches=find_evidences(term,pages,(term_modes or {}).get(term,match_mode))
+        evidence=evidence_matches[0] if evidence_matches else None
+        mode=(term_modes or {}).get(term,match_mode)
+        background=(industry_evidence(term,pages)['background']
+                    if mode!='exact' and is_technology_experience(term) else [])
         checks.append({"term":term,"kind":kind,"state":("OCR文字待核实" if evidence and evidence.get("source")=="ocr" else "有相关文字" if evidence else "待核实"),
-                       "evidence":evidence,"semantic_hint":None})
+                       "evidence":evidence,"evidence_matches":evidence_matches,
+                       "background_evidence":background,"semantic_hint":None,
+                       "semantic_hints":[]})
     # Exclusion evidence is a manual verification signal, never a deletion rule.
     for term in excluded:
-        evidence=find_evidence(term,pages,(term_modes or {}).get(term,match_mode))
-        checks.append({'term':term,'kind':'excluded',
+        evidence_matches=find_evidences(term,pages,(term_modes or {}).get(term,match_mode))
+        evidence=evidence_matches[0] if evidence_matches else None
+        checks.append({'term':term,'kind':'excluded','evidence_matches':evidence_matches,
                        'state':('OCR排除线索待核实' if evidence and evidence.get('source')=='ocr'
                                 else '排除线索待人工核实' if evidence else '未发现排除线索'),
                        'evidence':evidence,'semantic_hint':None})
     if semantic_matcher is not None:
         missing = [c['term'] for c in checks if c['kind']!='excluded' and not c['evidence']]
-        hints = semantic_matcher.search_many(missing, pages) if missing else {}
+        multi = getattr(semantic_matcher,'search_many_candidates',None)
+        if missing and callable(multi):
+            hints=multi(missing,pages)
+        elif missing:
+            hints={term:[hint] for term,hint in semantic_matcher.search_many(missing,pages).items()}
+        else:
+            hints={}
         for check in checks:
             if check['kind']=='excluded' or check['evidence'] or check['term'] not in hints:
                 continue
-            hint = hints[check['term']]
-            excerpt = str(hint.get('excerpt', ''))
-            if _negative_semantic_excerpt(check['term'], excerpt):
-                check['negative_evidence'] = hint
-                check['state'] = '明确否定表述待核实'
-                continue
-            if _offtopic_semantic_excerpt(check['term'], excerpt):
-                # A generic shared word ('开发') is not a recruiting lead.
-                continue
-            check['semantic_hint'] = hint
-            check['state'] = '语义相关待核实'
+            related=[]
+            negative=None
+            for hint in hints[check['term']]:
+                if (term_modes or {}).get(check['term'],match_mode)=='exact':
+                    continue
+                excerpt=str(hint.get('excerpt',''))
+                if _negative_semantic_excerpt(check['term'],excerpt):
+                    if negative is None:
+                        negative=hint
+                    continue
+                if _offtopic_semantic_excerpt(check['term'],excerpt):
+                    continue
+                # Industry *experience* must not be inferred from classroom work.
+                if is_technology_experience(check['term']):
+                    continue
+                if hint.get('section')=='education' and any(
+                        x in check['term'] for x in ('经验','经历','从业','任职','实习')):
+                    continue
+                if hint not in related:
+                    related.append(hint)
+            check['semantic_hints']=related[:3]
+            if related:
+                check['semantic_hint']=related[0]
+                check['state']='语义相关待核实'
+            elif negative is not None:
+                check['negative_evidence']=negative
+                check['state']='明确否定表述待核实'
 
     positive_checks=[x for x in checks if x['kind']!='excluded']
     must=[x for x in positive_checks if x['kind']=='required']

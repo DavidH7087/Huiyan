@@ -13,8 +13,14 @@ function highlightedResumeText(value,excerpt=''){
  if(!needle)return e(text||'未提取到文字');
  let start=text.indexOf(needle),len=needle.length;
  if(start<0){
-   const fragment=needle.slice(0,Math.min(24,needle.length));
-   start=text.indexOf(fragment);len=fragment.length;
+   // Combined work-history excerpts join lines with "；"; the underlying
+   // extracted CV still has newlines. Locate an actual source clause instead.
+   const clauses=needle.split(/[；;\n]+/).map(x=>x.trim()).filter(Boolean);
+   for(const clause of clauses){
+     const fragment=clause.slice(0,Math.min(36,clause.length));
+     const found=text.indexOf(fragment);
+     if(found>=0){start=found;len=fragment.length;break}
+   }
  }
  if(start<0)return e(text||'未提取到文字');
  return e(text.slice(0,start))
@@ -92,6 +98,30 @@ function comparisonMarkup(){
  <p class="hint">分组变动：${report.changed.length?report.changed.slice(0,12).map(v=>e(v.name+'：'+v.before+' → '+v.after)).join('；'):'无'}</p>
  <p class="hint">显示前 100 项变化，原记录不变。</p></div>`;
 }
+function criterionBlock(check,resumeId,index){
+ const textMatches=check.evidence_matches?.length?check.evidence_matches:(check.evidence?[check.evidence]:[]);
+ const semanticMatches=check.semantic_hints?.length?check.semantic_hints:(check.semantic_hint?[check.semantic_hint]:[]);
+ const background=check.background_evidence||[];
+ const negatives=check.negative_evidence?[check.negative_evidence]:[];
+ const isIndustry=textMatches.some(v=>v.basis==='行业经历')||background.length>0;
+ const items=[];
+ function section(values,title,kind){
+   if(!values.length)return;
+   items.push(`<div class="evidence-group"><p class="evidence-group-title">${e(title)}</p>${values.map((item,i)=>`<div class="evidence-entry"><p class="proof-source">第 ${Number(item.page)||1} 页</p><p class="proof-excerpt">${e(item.excerpt||'')}</p><button class="source-jump" data-source-resume="${resumeId}" data-source-index="${index}" data-source-kind="${kind}" data-source-pos="${i}">查看原文</button></div>`).join('')}</div>`);
+ }
+ section(textMatches,isIndustry?'行业工作经历':'文字依据','text');
+ section(semanticMatches,'其他相关片段','semantic');
+ section(negatives,'否定表述','negative');
+ const projects=background.filter(v=>v.section==='project');
+ const education=background.filter(v=>v.section==='education');
+ section(projects,'项目背景 · 不计作行业工作经验','project');
+ section(education,'教育背景 · 不计作行业工作经验','education');
+ if(!items.length)items.push('<p class="muted-copy">未找到相关经历。</p>');
+ const stateLabel=textMatches.length?(isIndustry?'行业经历':'找到文字'):
+    negatives.length?'否定表述':semanticMatches.length?'相近内容':
+    background.length?'仅有背景信息':'未找到';
+ return `<div class="evidence-item"><div class="toolbar" style="margin:0"><strong>${e(check.term)}</strong>${badge(stateLabel,textMatches.length?'green':'neutral')}</div>${items.join('')}</div>`;
+}
 function candidatePanel(r){
  const checks=r.evaluation.checks||[];
  const considered=checks.filter(c=>c.kind!=='excluded');
@@ -102,13 +132,13 @@ function candidatePanel(r){
  ${unconfirmed?'<p class="quiet-note">未从简历中找到姓名，请核对后填写。</p>':''}
  ${editing?`<div class="name-editor"><label for="candidateNameInput">应聘人姓名</label><input id="candidateNameInput" maxlength="60" value="${e(unconfirmed?'':r.name)}" placeholder="请输入简历上的姓名"><div class="inline-actions"><button class="btn small" data-save-name="${r.resume_id}">保存姓名</button><button class="btn secondary small" id="cancelEditName">取消</button></div></div>`:''}
  <div class="candidate-quick-info">${r.phone?`<span>电话：${e(r.phone)}</span>`:''}${r.email?`<span>邮箱：${e(r.email)}</span>`:''}</div>
- <div class="evidence-summary"><span>文字匹配 <strong>${matched} / ${considered.length}</strong></span><span>覆盖率 <strong>${Number(r.evaluation.evidence_coverage)}%</strong></span></div>
+ <div class="evidence-summary"><span>有据条件 <strong>${matched} / ${considered.length}</strong></span><span>证据覆盖率 <strong>${Number(r.evaluation.evidence_coverage)}%</strong></span></div>
  ${r.possible_duplicate_with?.length?`<p class="quiet-note">发现 ${r.possible_duplicate_with.length} 份联系方式相同的简历，可在完整资料中核对。</p>`:''}
  ${r.ocr_pages||r.parse_warnings?'<p class="quiet-note">部分内容可能识别不完整，请留意下方原文。</p>':''}
  ${r.evaluation.exclusion_flags?`<p class="quiet-note">发现 ${Number(r.evaluation.exclusion_flags)} 项排除线索，请核对具体内容。</p>`:''}
  <button class="btn secondary" data-preview="${r.resume_id}">查看简历详情</button>
  <div class="section-divider"><h3>条件匹配</h3></div>
- ${checks.map((c,i)=>`<div class="evidence-item"><div class="toolbar" style="margin:0"><strong>${e(c.term)}</strong>${badge(c.evidence?'找到文字':c.negative_evidence?'否定表述':c.semantic_hint?'相近内容':'未找到',c.evidence?'green':'neutral')}</div>${c.evidence?`<p class="proof-source">第 ${Number(c.evidence.page)} 页</p><p class="proof-excerpt">${e(c.evidence.excerpt)}</p>`:c.negative_evidence?`<p class="proof-source">否定表述 · 第 ${Number(c.negative_evidence.page)} 页</p><p class="proof-excerpt">${e(c.negative_evidence.excerpt)}</p>`:c.semantic_hint?`<p class="proof-source">相近内容 · 第 ${Number(c.semantic_hint.page)} 页</p><p class="proof-excerpt">${e(c.semantic_hint.excerpt)}</p>`:'<p class="muted-copy">未找到直接相关的文字。</p>'}${c.evidence||c.negative_evidence||c.semantic_hint?`<button class="source-jump" data-source-resume="${r.resume_id}" data-source-index="${i}">查看原文</button>`:''}</div>`).join('')||'<p class="muted-copy">尚未设置筛选条件。</p>'}
+ ${checks.map((check,index)=>criterionBlock(check,r.resume_id,index)).join('')||'<p class="muted-copy">尚未设置筛选条件。</p>'}
  <div class="subpanel"><h3>审核记录</h3>${r.review_at_run?`<p class="hint">本轮创建时：${e(r.review_at_run.status)} · 当前：${e(r.review_status)}</p>`:'<p class="hint">本轮未保存早期审核状态。</p>'}
  <label for="reviewStatus">审核状态</label><select id="reviewStatus">${['未审核','加入面试名单','需要补充资料','暂不推进'].map(v=>`<option value="${e(v)}" ${v===r.review_status?'selected':''}>${e(v)}</option>`).join('')}</select>
  <label for="reviewNote">备注</label><textarea id="reviewNote" style="min-height:74px" placeholder="填写审核意见">${e(r.review_note||'')}</textarea>
@@ -263,7 +293,16 @@ view.addEventListener('click',ev=>withBusy(async()=>{
     const position=Number(target.dataset.sourceIndex);
     const resume=state.result?.results.find(item=>item.resume_id===resumeId);
     const check=resume?.evaluation?.checks?.[position];
-    const source=check?.evidence||check?.negative_evidence||check?.semantic_hint;
+    const kind=target.dataset.sourceKind||'text';
+    const pos=Number(target.dataset.sourcePos||0);
+    const pools={
+      text:check?.evidence_matches?.length?check.evidence_matches:(check?.evidence?[check.evidence]:[]),
+      semantic:check?.semantic_hints?.length?check.semantic_hints:(check?.semantic_hint?[check.semantic_hint]:[]),
+      negative:check?.negative_evidence?[check.negative_evidence]:[],
+      project:(check?.background_evidence||[]).filter(item=>item.section==='project'),
+      education:(check?.background_evidence||[]).filter(item=>item.section==='education')
+    };
+    const source=pools[kind]?.[pos];
     if(!resume||!source){toast('找不到对应原文');return}
     state.preview=await api(`/api/tasks/${state.task.id}/resumes/${resumeId}`);
     state.sourceFocus={resumeId,page:Number(source.page),excerpt:String(source.excerpt||'')};

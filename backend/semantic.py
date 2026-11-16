@@ -12,6 +12,7 @@ from collections import OrderedDict
 from threading import RLock
 from pathlib import Path
 from typing import Protocol
+from .industry_context import _heading
 
 
 class Encoder(Protocol):
@@ -25,21 +26,28 @@ class Reranker(Protocol):
 def passages(pages: list[dict], max_items: int = 64) -> list[dict]:
     """Bounded, readable passages with stable source page numbers."""
     out: list[dict] = []
+    section='other'
     for page in pages[:120]:
         text = str(page.get('text') or '')
         # Preserve short résumé lines and split long sections into manageable pieces.
         segments = re.split(r'[。！？!?；;\n]+', text)
         for segment in segments:
             segment = re.sub(r'\s+', ' ', segment).strip()
+            heading=_heading(segment)
+            if heading is not None:
+                if not (section=='work' and heading=='other' and segment in
+                        ('IT技能','专业技能','主修课程','技能特长')):
+                    section=heading
+                continue
             if len(segment) < 8:
                 continue
             if len(segment) <= 360:
-                out.append({'page': page.get('page', 1), 'excerpt': segment})
+                out.append({'page': page.get('page', 1), 'excerpt': segment, 'section': section})
             else:
                 for i in range(0, len(segment), 280):
                     part = segment[i:i + 360]
                     if len(part) >= 8:
-                        out.append({'page': page.get('page', 1), 'excerpt': part})
+                        out.append({'page': page.get('page', 1), 'excerpt': part, 'section': section})
             if len(out) >= max_items:
                 return out
     return out
@@ -73,7 +81,8 @@ class SemanticMatcher:
     def enabled(self) -> bool:
         return self.encoder is not None
 
-    def search_many(self, terms: list[str], pages: list[dict]) -> dict[str, dict]:
+    def search_many_candidates(self, terms: list[str], pages: list[dict],
+                               limit: int = 3) -> dict[str, list[dict]]:
         if not self.enabled:
             return {}
         unique_terms = list(dict.fromkeys(term.strip() for term in terms if term.strip()))
@@ -103,32 +112,52 @@ class SemanticMatcher:
             while len(self._cache) > self._cache_limit:
                 self._cache.popitem(last=False)
         document_vectors = vectors[len(unique_terms):]
-        selections = {}
-        pairs = []
-        pair_meta = []
+        selected: dict[str,list[tuple[int,float]]] = {}
+        pairs=[]
+        pair_meta=[]
         for index, term in enumerate(unique_terms):
-            sims = [_cosine(vectors[index], v) for v in document_vectors]
-            top = sorted(range(len(sims)), key=lambda i: sims[i], reverse=True)[:5]
-            if not top or sims[top[0]] < self.minimum_similarity:
+            sims=[_cosine(vectors[index],v) for v in document_vectors]
+            top=sorted(range(len(sims)),key=lambda i:sims[i],reverse=True)[:5]
+            relevant=[i for i in top if sims[i]>=self.minimum_similarity]
+            if not relevant:
                 continue
-            selections[term] = top[0]
+            selected[term]=[(i,sims[i]) for i in relevant]
             if self.reranker is not None:
-                for i in top:
-                    pairs.append((term, snippets[i]['excerpt']))
-                    pair_meta.append((term, i))
+                for i in relevant:
+                    pairs.append((term,snippets[i]['excerpt']))
+                    pair_meta.append((term,i))
         if pairs:
-            rerank_scores = self.reranker.predict(pairs, show_progress_bar=False)
-            best = {}
-            for (term, index), score in zip(pair_meta, rerank_scores):
-                if term not in best or float(score) > best[term][0]:
-                    best[term] = (float(score), index)
-            selections.update({term: value[1] for term, value in best.items()})
-        return {term: {'page': snippets[i]['page'], 'excerpt': snippets[i]['excerpt'],
-                       'source': 'local_semantic', 'review_required': True}
-                for term, i in selections.items()}
+            scores=self.reranker.predict(pairs,show_progress_bar=False)
+            reranked={(term,i):float(score) for (term,i),score in zip(pair_meta,scores)}
+            for term, options in selected.items():
+                options.sort(key=lambda pair:(reranked.get((term,pair[0]),float('-inf')),
+                                               pair[1]),reverse=True)
+        results={}
+        for term,choices in selected.items():
+            seen=set()
+            values=[]
+            for i,score in choices:
+                excerpt=snippets[i]['excerpt']
+                key=re.sub(r'\s+','',excerpt).lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                values.append({'page':snippets[i]['page'],'excerpt':excerpt,
+                               'section':snippets[i]['section'],
+                               'source':'local_semantic','review_required':True})
+                if len(values)>=limit:
+                    break
+            if values:
+                results[term]=values
+        return results
 
-    def search(self, term: str, pages: list[dict]) -> dict | None:
-        return self.search_many([term], pages).get(term)
+    def search_many(self,terms:list[str],pages:list[dict]) -> dict[str,dict]:
+        """Legacy single-hit interface, backed by the same candidate ranking."""
+        return {term:candidates[0] for term,candidates in
+                self.search_many_candidates(terms,pages,limit=1).items()}
+
+    def search(self,term:str,pages:list[dict]) -> dict | None:
+        return self.search_many([term],pages).get(term)
 
 
 class LocalSemanticService:
