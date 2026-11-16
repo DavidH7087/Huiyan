@@ -1,6 +1,6 @@
 # 慧眼 Windows 安装程序（预览版）
 
-Windows GitHub Actions 使用 Inno Setup 6 将通过冒烟测试的 `dist/Huiyan` 便携文件夹打包为 `Huiyan-Setup-0.9.2-preview.exe`（基础版）或 `Huiyan-Setup-0.9.0-AI-preview.exe`（内置本地模型的 AI 版）。
+Windows GitHub Actions 使用 Inno Setup 6 将通过冒烟测试的 `dist/Huiyan` 便携文件夹打包为 `Huiyan-Setup-0.9.3-preview.exe`（基础版）或 `Huiyan-Setup-0.9.0-AI-preview.exe`（内置本地模型的 AI 版）。
 
 - 默认按用户安装在 `%LOCALAPPDATA%\Programs\Huiyan`，无需管理员权限。
 - 自动创建开始菜单快捷方式，可选桌面快捷方式，带卸载入口。

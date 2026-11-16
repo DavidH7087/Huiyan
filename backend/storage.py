@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE TABLE IF NOT EXISTS resumes (
  id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL REFERENCES tasks(id),
  filename TEXT NOT NULL, content_hash TEXT NOT NULL, stored_file TEXT NOT NULL,
- name TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '',
+ name TEXT NOT NULL, name_source TEXT NOT NULL DEFAULT 'legacy',
+ phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '',
  pages_json TEXT NOT NULL, imported_at TEXT NOT NULL DEFAULT (datetime('now')),
  UNIQUE(task_id,content_hash)
 );
@@ -87,6 +88,11 @@ class Store:
                 cn.execute("ALTER TABLE tasks ADD COLUMN description_leads TEXT DEFAULT NULL")
             if 'term_modes' not in existing:
                 cn.execute("ALTER TABLE tasks ADD COLUMN term_modes TEXT NOT NULL DEFAULT '{}'")
+            resume_columns={row['name'] for row in cn.execute('PRAGMA table_info(resumes)')}
+            if 'name_source' not in resume_columns:
+                # Older files retain their IDs, review notes and screening rounds.
+                cn.execute("ALTER TABLE resumes ADD COLUMN name_source TEXT NOT NULL DEFAULT 'legacy'")
+
 
     @contextmanager
     def connect(self):

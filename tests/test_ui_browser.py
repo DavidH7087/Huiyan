@@ -79,6 +79,16 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
                 page.locator('#startScreening').click()
                 page.locator('.candidate-list').get_by_text('张三').wait_for()
                 page.locator('[data-candidate]').first.click()
+                page.locator('[data-preview]').click()
+                page.get_by_role('heading',name='工作经验').wait_for()
+                page.get_by_role('heading',name='简历文本').wait_for()
+                assert page.locator('a[href*="/original"]').count()==0
+                assert page.locator('.resume-source').count()>=1
+                page.locator('button[data-go="results"]').click()
+                page.locator('[data-edit-name]').click()
+                page.locator('#candidateNameInput').fill('张小测试')
+                page.locator('[data-save-name]').click()
+                page.locator('.candidate-list').get_by_text('张小测试').wait_for()
                 page.locator('#reviewStatus').select_option('加入面试名单')
                 page.locator('#reviewNote').fill('本地自动化测试审核')
                 page.locator('[data-save-review]').click()

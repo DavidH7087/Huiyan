@@ -78,6 +78,27 @@ class RunCreate(BaseModel):
     parent_id: int|None=None
     source_filter: Literal['全部','优先查看','需要确认','面试名单']='全部'
 
+
+class CandidateNameUpdate(BaseModel):
+    name: str=Field(min_length=1,max_length=60)
+
+
+def refresh_resume_names(cn,task_id:int) -> None:
+    """Upgrade filename-derived names in place; respect HR edits and old run data."""
+    old=cn.execute("""SELECT id,filename,name,pages_json FROM resumes
+        WHERE task_id=? AND name_source='legacy'""",(task_id,)).fetchall()
+    for item in old:
+        stored_name=(item['name'] or '').strip()
+        filename_stem=Path(item['filename']).stem.strip()
+        if stored_name and stored_name!=filename_stem and stored_name!='姓名待确认':
+            # A previous parser already found an independent name.
+            cn.execute("UPDATE resumes SET name_source='extracted' WHERE id=?",
+                       (item['id'],))
+            continue
+        identity=extract_identity(json.loads(item['pages_json']),item['filename'])
+        cn.execute("UPDATE resumes SET name=?,name_source=? WHERE id=?",
+                   (identity['name'],identity['name_source'],item['id']))
+
 class ReviewPatch(BaseModel):
     status: Literal['未审核','加入面试名单','需要补充资料','暂不推进']
     note: str=Field(default='',max_length=3000)
@@ -194,7 +215,7 @@ def create_app(data_dir:Path|None=None):
     store=Store(root)
     semantic=LocalSemanticService()
     ocr=LocalOcrService()
-    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.9.2-preview')
+    app=FastAPI(title='慧眼 - 简历筛选助手',version='0.9.3-preview')
     if os.environ.get('HUIYAN_DESKTOP_MODE') == '1':
         if os.environ.get('HUIYAN_SESSION_TOKEN'):
             app.add_middleware(DesktopSessionGuard)
@@ -437,6 +458,7 @@ def create_app(data_dir:Path|None=None):
     def review_history(task_id:int):
         with store.connect() as cn:
             get_task(cn,task_id)
+            refresh_resume_names(cn,task_id)
             return [dict(row) for row in cn.execute(
                 """SELECT e.id,e.resume_id,r.name,e.status,e.note,e.occurred_at
                    FROM review_events e LEFT JOIN resumes r ON r.id=e.resume_id AND r.task_id=e.task_id
@@ -491,9 +513,10 @@ def create_app(data_dir:Path|None=None):
                     saved_path.write_bytes(content)
                     with store.connect() as cn:
                         saved=cn.execute("""INSERT INTO resumes
-                            (task_id,filename,content_hash,stored_file,name,phone,email,pages_json)
-                            VALUES(?,?,?,?,?,?,?,?)""",
-                            (task_id,name,file_hash,stored_file,person['name'],person['phone'],person['email'],dumps(pages)))
+                            (task_id,filename,content_hash,stored_file,name,name_source,phone,email,pages_json)
+                            VALUES(?,?,?,?,?,?,?,?,?)""",
+                            (task_id,name,file_hash,stored_file,person['name'],person['name_source'],
+                             person['phone'],person['email'],dumps(pages)))
                         load_resume_profile(cn,saved.lastrowid,pages)
                         caution=[p for p in pages if p.get('warning')]
                         if caution:
@@ -525,6 +548,7 @@ def create_app(data_dir:Path|None=None):
         """Preview old personal data; never expire or delete candidates automatically."""
         with store.connect() as cn:
             get_task(cn,task_id)
+            refresh_resume_names(cn,task_id)
             cutoff=f'-{days} days'
             total=cn.execute("""SELECT COUNT(*) FROM resumes
                 WHERE task_id=? AND imported_at < datetime('now',?)""",
@@ -540,7 +564,23 @@ def create_app(data_dir:Path|None=None):
     def list_resumes(task_id:int):
         with store.connect() as cn:
             get_task(cn,task_id)
-            return [dict(x) for x in cn.execute('SELECT id,filename,name,phone,email,imported_at FROM resumes WHERE task_id=? ORDER BY id DESC',(task_id,))]
+            refresh_resume_names(cn,task_id)
+            return [dict(x) for x in cn.execute('SELECT id,filename,name,name_source,phone,email,imported_at FROM resumes WHERE task_id=? ORDER BY id DESC',(task_id,))]
+
+    @app.patch('/api/tasks/{task_id}/resumes/{resume_id}/name')
+    def change_candidate_name(task_id:int,resume_id:int,payload:CandidateNameUpdate):
+        with store.connect() as cn:
+            get_task(cn,task_id)
+            row=cn.execute('SELECT id FROM resumes WHERE id=? AND task_id=?',
+                           (resume_id,task_id)).fetchone()
+            if not row:
+                raise HTTPException(404,'简历不存在')
+            name=payload.name.strip()
+            if not name:
+                raise HTTPException(422,'请填写姓名')
+            cn.execute("UPDATE resumes SET name=?,name_source='manual' WHERE id=?",
+                       (name,resume_id))
+            return {'ok':True,'name':name,'name_source':'manual'}
 
     @app.get('/api/tasks/{task_id}/duplicates')
     def possible_duplicates(task_id: int):
@@ -556,13 +596,15 @@ def create_app(data_dir:Path|None=None):
     def resume_content(task_id:int,resume_id:int):
         with store.connect() as cn:
             get_task(cn,task_id)
+            refresh_resume_names(cn,task_id)
             row=cn.execute('SELECT * FROM resumes WHERE task_id=? AND id=?',(task_id,resume_id)).fetchone()
             if not row:
                 raise HTTPException(404,'简历不存在')
             pages=json.loads(row['pages_json'])
             profile=load_resume_profile(cn,resume_id,pages)
             return {'id':resume_id,'filename':row['filename'],'pages':pages,
-                    'name':row['name'],'email':row['email'],'phone':row['phone'],
+                    'name':row['name'],'name_source':row['name_source'],
+                    'email':row['email'],'phone':row['phone'],
                     'profile':profile}
 
     @app.get('/api/tasks/{task_id}/resumes/{resume_id}/profile')
@@ -573,18 +615,6 @@ def create_app(data_dir:Path|None=None):
             if not row:
                 raise HTTPException(404,'简历不存在')
             return load_resume_profile(cn,resume_id,json.loads(row['pages_json']))
-
-    @app.get('/api/tasks/{task_id}/resumes/{resume_id}/original')
-    def resume_original(task_id:int,resume_id:int):
-        with store.connect() as cn:
-            get_task(cn,task_id)
-            row=cn.execute('SELECT filename,stored_file FROM resumes WHERE task_id=? AND id=?',(task_id,resume_id)).fetchone()
-            if not row:
-                raise HTTPException(404,'简历不存在')
-            suffix=Path(row['filename']).suffix.lower()
-            mime={'.pdf':'application/pdf','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.txt':'text/plain'}.get(suffix,'application/octet-stream')
-            path=store.root/'uploads'/row['stored_file']
-            return FileResponse(path,media_type=mime,filename=row['filename'],content_disposition_type='inline' if suffix=='.pdf' else 'attachment')
 
     @app.get('/api/tasks/{task_id}/runs')
     def list_runs(task_id:int):
@@ -798,7 +828,8 @@ def create_app(data_dir:Path|None=None):
     def results(task_id:int,run_id:int):
         with store.connect() as cn:
             run=get_run(cn,task_id,run_id)
-            query='''SELECT r.id AS resume_id,r.name,r.filename,r.phone,r.email,r.pages_json,
+            refresh_resume_names(cn,task_id)
+            query='''SELECT r.id AS resume_id,r.name,r.name_source,r.filename,r.phone,r.email,r.pages_json,
                   e.results_json,rv.status AS review_status,rv.note AS review_note
                   FROM evaluations e JOIN resumes r ON r.id=e.resume_id
                   LEFT JOIN reviews rv ON rv.task_id=r.task_id AND rv.resume_id=r.id
@@ -837,7 +868,7 @@ def create_app(data_dir:Path|None=None):
     def export_results(task_id:int,run_id:int):
         data=results(task_id,run_id)
         wb=Workbook(); ws=wb.active;ws.title='筛选结果'
-        ws.append(['候选人','原文件','电话','邮箱','AI辅助分组','证据覆盖率','匹配条件','待核实条件','人工审核','审核备注','需核对排除线索','关键词匹配模式'])
+        ws.append(['候选人','原文件','电话','邮箱','筛选分类','文字覆盖率','匹配条件','待核实条件','人工审核','审核备注','需核对排除线索','关键词匹配模式'])
         def safe(value):
             value=str(value or '')
             return "'"+value if value.startswith(('=','+','-','@')) else value
@@ -848,7 +879,7 @@ def create_app(data_dir:Path|None=None):
             ws.append([safe(row['name']),safe(row['filename']),safe(row['phone']),safe(row['email']),ev['group'],
                        ev['evidence_coverage'],safe(matched),safe(unknown),row['review_status'],safe(row['review_note']),
                        safe('、'.join(c['term'] for c in checks if c['kind']=='excluded' and c['evidence'])),
-                       '精确文字' if data['run']['criteria'].get('match_mode')=='exact' else '智能同义'])
+                       '精确文字' if data['run']['criteria'].get('match_mode')=='exact' else '同义词匹配'])
         ws.freeze_panes='A2'; ws.auto_filter.ref=ws.dimensions
         for col,width in {'A':20,'B':33,'C':19,'D':30,'E':18,'F':14,'G':48,'H':48,'I':19,'J':38,'K':35,'L':18}.items():
             ws.column_dimensions[col].width=width
