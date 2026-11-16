@@ -78,6 +78,27 @@ class RunCreate(BaseModel):
     parent_id: int|None=None
     source_filter: Literal['全部','优先查看','需要确认','面试名单']='全部'
 
+
+class CandidateNameUpdate(BaseModel):
+    name: str=Field(min_length=1,max_length=60)
+
+
+def refresh_resume_names(cn,task_id:int) -> None:
+    """Upgrade filename-derived names in place; respect HR edits and old run data."""
+    old=cn.execute("""SELECT id,filename,name,pages_json FROM resumes
+        WHERE task_id=? AND name_source='legacy'""",(task_id,)).fetchall()
+    for item in old:
+        stored_name=(item['name'] or '').strip()
+        filename_stem=Path(item['filename']).stem.strip()
+        if stored_name and stored_name!=filename_stem and stored_name!='姓名待确认':
+            # A previous parser already found an independent name.
+            cn.execute("UPDATE resumes SET name_source='extracted' WHERE id=?",
+                       (item['id'],))
+            continue
+        identity=extract_identity(json.loads(item['pages_json']),item['filename'])
+        cn.execute("UPDATE resumes SET name=?,name_source=? WHERE id=?",
+                   (identity['name'],identity['name_source'],item['id']))
+
 class ReviewPatch(BaseModel):
     status: Literal['未审核','加入面试名单','需要补充资料','暂不推进']
     note: str=Field(default='',max_length=3000)
@@ -491,9 +512,10 @@ def create_app(data_dir:Path|None=None):
                     saved_path.write_bytes(content)
                     with store.connect() as cn:
                         saved=cn.execute("""INSERT INTO resumes
-                            (task_id,filename,content_hash,stored_file,name,phone,email,pages_json)
-                            VALUES(?,?,?,?,?,?,?,?)""",
-                            (task_id,name,file_hash,stored_file,person['name'],person['phone'],person['email'],dumps(pages)))
+                            (task_id,filename,content_hash,stored_file,name,name_source,phone,email,pages_json)
+                            VALUES(?,?,?,?,?,?,?,?,?)""",
+                            (task_id,name,file_hash,stored_file,person['name'],person['name_source'],
+                             person['phone'],person['email'],dumps(pages)))
                         load_resume_profile(cn,saved.lastrowid,pages)
                         caution=[p for p in pages if p.get('warning')]
                         if caution:
@@ -540,7 +562,23 @@ def create_app(data_dir:Path|None=None):
     def list_resumes(task_id:int):
         with store.connect() as cn:
             get_task(cn,task_id)
-            return [dict(x) for x in cn.execute('SELECT id,filename,name,phone,email,imported_at FROM resumes WHERE task_id=? ORDER BY id DESC',(task_id,))]
+            refresh_resume_names(cn,task_id)
+            return [dict(x) for x in cn.execute('SELECT id,filename,name,name_source,phone,email,imported_at FROM resumes WHERE task_id=? ORDER BY id DESC',(task_id,))]
+
+    @app.patch('/api/tasks/{task_id}/resumes/{resume_id}/name')
+    def change_candidate_name(task_id:int,resume_id:int,payload:CandidateNameUpdate):
+        with store.connect() as cn:
+            get_task(cn,task_id)
+            row=cn.execute('SELECT id FROM resumes WHERE id=? AND task_id=?',
+                           (resume_id,task_id)).fetchone()
+            if not row:
+                raise HTTPException(404,'简历不存在')
+            name=payload.name.strip()
+            if not name:
+                raise HTTPException(422,'请填写姓名')
+            cn.execute("UPDATE resumes SET name=?,name_source='manual' WHERE id=?",
+                       (name,resume_id))
+            return {'ok':True,'name':name,'name_source':'manual'}
 
     @app.get('/api/tasks/{task_id}/duplicates')
     def possible_duplicates(task_id: int):
@@ -556,13 +594,15 @@ def create_app(data_dir:Path|None=None):
     def resume_content(task_id:int,resume_id:int):
         with store.connect() as cn:
             get_task(cn,task_id)
+            refresh_resume_names(cn,task_id)
             row=cn.execute('SELECT * FROM resumes WHERE task_id=? AND id=?',(task_id,resume_id)).fetchone()
             if not row:
                 raise HTTPException(404,'简历不存在')
             pages=json.loads(row['pages_json'])
             profile=load_resume_profile(cn,resume_id,pages)
             return {'id':resume_id,'filename':row['filename'],'pages':pages,
-                    'name':row['name'],'email':row['email'],'phone':row['phone'],
+                    'name':row['name'],'name_source':row['name_source'],
+                    'email':row['email'],'phone':row['phone'],
                     'profile':profile}
 
     @app.get('/api/tasks/{task_id}/resumes/{resume_id}/profile')
@@ -573,18 +613,6 @@ def create_app(data_dir:Path|None=None):
             if not row:
                 raise HTTPException(404,'简历不存在')
             return load_resume_profile(cn,resume_id,json.loads(row['pages_json']))
-
-    @app.get('/api/tasks/{task_id}/resumes/{resume_id}/original')
-    def resume_original(task_id:int,resume_id:int):
-        with store.connect() as cn:
-            get_task(cn,task_id)
-            row=cn.execute('SELECT filename,stored_file FROM resumes WHERE task_id=? AND id=?',(task_id,resume_id)).fetchone()
-            if not row:
-                raise HTTPException(404,'简历不存在')
-            suffix=Path(row['filename']).suffix.lower()
-            mime={'.pdf':'application/pdf','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.txt':'text/plain'}.get(suffix,'application/octet-stream')
-            path=store.root/'uploads'/row['stored_file']
-            return FileResponse(path,media_type=mime,filename=row['filename'],content_disposition_type='inline' if suffix=='.pdf' else 'attachment')
 
     @app.get('/api/tasks/{task_id}/runs')
     def list_runs(task_id:int):
@@ -798,7 +826,8 @@ def create_app(data_dir:Path|None=None):
     def results(task_id:int,run_id:int):
         with store.connect() as cn:
             run=get_run(cn,task_id,run_id)
-            query='''SELECT r.id AS resume_id,r.name,r.filename,r.phone,r.email,r.pages_json,
+            refresh_resume_names(cn,task_id)
+            query='''SELECT r.id AS resume_id,r.name,r.name_source,r.filename,r.phone,r.email,r.pages_json,
                   e.results_json,rv.status AS review_status,rv.note AS review_note
                   FROM evaluations e JOIN resumes r ON r.id=e.resume_id
                   LEFT JOIN reviews rv ON rv.task_id=r.task_id AND rv.resume_id=r.id
