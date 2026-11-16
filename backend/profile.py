@@ -52,7 +52,7 @@ def _negated_fact(clause: str, value: str) -> bool:
             if not line:
                 continue
             quote = _evidence(page, line)
-            for clause in re.split(r'[，,；;。！!]', line):
+            for clause in re.split(r'[，,；;。！!]|(?:但是|但|不过)', line):
                 if not clause.strip():
                     continue
                 fact_quote = _evidence(page, clause)
