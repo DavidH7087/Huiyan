@@ -31,21 +31,21 @@ function home(){return `<div class="home"><div class="hero"><h1>开始简历筛�
 function confirm(){return `<div class="page-title"><h1>${state.editing?'编辑招聘要求':'确认筛选要求'}</h1><p>核对岗位要求和筛选条件。</p></div>
 <div class="surface"><div class="field"><label for="jobTitle">岗位或任务名称</label><input id="jobTitle" value="${e(state.title)}" placeholder="例如：销售经理招聘"></div>
 <div class="field"><label for="descConfirm">招聘需求</label><textarea id="descConfirm">${e(state.description)}</textarea></div>
-<div class="field"><label for="descClues">其他检索线索</label><textarea id="descClues" style="min-height:76px" placeholder="系统提取的可选检索线索">${e(state.descriptionLeads.join('、'))}</textarea><small>可直接修改，最多 8 项。</small></div>
+<div class="field"><label for="descClues">其他检索线索</label><textarea id="descClues" style="min-height:76px" placeholder="从岗位描述提取的线索">${e(state.descriptionLeads.join('、'))}</textarea><small>可直接修改，最多 8 项。</small></div>
 <div class="form-grid"><div class="field"><label for="mustTerms">必须具备</label><textarea id="mustTerms" style="min-height:110px">${e(state.required.join('、'))}</textarea><small>多个条件用顿号分隔。</small></div>
 <div class="field"><label for="bonusTerms">优先考虑</label><textarea id="bonusTerms" style="min-height:110px">${e(state.preferred.join('、'))}</textarea><small>符合的候选人优先展示。</small></div></div>
 <div class="form-grid"><div class="field"><label for="excludedTerms">排除条件</label><textarea id="excludedTerms" style="min-height:72px" placeholder="例如：仅短期兼职、未独立负责">${e(state.excluded.join('、'))}</textarea><small>用于标记不符合岗位要求的描述，不自动排除。</small></div>
 <div class="field"><label for="keywordMode">匹配方式</label><select id="keywordMode"><option value="aliases" ${state.matchMode==='aliases'?'selected':''}>包含同义词</option><option value="exact" ${state.matchMode==='exact'?'selected':''}>仅匹配原词</option></select><small>仅影响文字检索。</small></div></div>
 <details class="audit-log"><summary>高级设置</summary><p class="hint">需精确匹配的条件，以顿号分隔。</p><textarea id="exactTerms" style="min-height:70px" placeholder="例如：Java、ISO9001">${e(Object.keys(state.termModes).filter(k=>state.termModes[k]==='exact').join('、'))}</textarea></details>
 <div class="notice">提交前请检查筛选条件。</div>
-<div class="actions" style="margin-top:22px"><button class="btn secondary" data-go="home">返回修改</button><button class="btn" id="createTask">${state.editing?'保存条件（历史轮次不变）':'创建任务'}</button></div></div>`}
+<div class="actions" style="margin-top:22px"><button class="btn secondary" data-go="home">返回修改</button><button class="btn" id="createTask">${state.editing?'保存条件':'创建任务'}</button></div></div>`}
 function importPage(){return `<div class="page-title"><h1>添加简历</h1><p>${e(state.task?.title||'')} · 可以一次添加多个文件或整个文件夹。</p></div>
 <div class="surface"><div class="dropzone" id="resumeDropzone"><strong>选择文件，或将简历拖到这里</strong><p>支持 PDF、DOCX、TXT、ZIP；${state.health?.ocr?.state==='ready' ? '支持扫描版简历识别。' : '扫描版简历识别暂不可用。'}</p><input type="file" id="fileInput" multiple accept=".pdf,.docx,.txt,.zip"><p style="margin-top:16px">或者选择整个文件夹</p><input type="file" id="folderInput" multiple webkitdirectory directory><p id="selectedFiles" class="hint">${state.stagedFiles.length?'已选择 '+state.stagedFiles.length+' 个文件':'尚未选择文件'}</p></div>
-${state.health?.ocr ? `<p class="hint">扫描件识别：${e(state.health.ocr.message)}${state.health.ocr.state==='ready'?'':'。扫描版简历可能导入失败，请查看 OCR 配置说明。'}</p>` : ''}<p id="importProgress" class="hint" role="status" aria-live="polite"></p><div class="actions" style="margin-top:18px"><button class="btn secondary" data-go="tasks">稍后添加</button><button class="btn" id="uploadFiles">导入所选简历</button></div>
+${state.health?.ocr ? `<p class="hint">${state.health.ocr.state==='ready'?'支持扫描版简历':'扫描件识别暂不可用，请使用文字版简历'}</p>` : ''}<p id="importProgress" class="hint" role="status" aria-live="polite"></p><div class="actions" style="margin-top:18px"><button class="btn secondary" data-go="tasks">稍后添加</button><button class="btn" id="uploadFiles">导入所选简历</button></div>
 ${state.uploadSummary?`<div class="notice">成功导入 ${state.uploadSummary.imported} 份，重复 ${state.uploadSummary.duplicates} 份，问题文件 ${state.uploadSummary.issues.length} 份，需核对 ${state.uploadSummary.warnings?.length||0} 份。</div>`:''}
 ${state.uploadSummary?.issues?.length?`<div class="notice warn">${state.uploadSummary.issues.slice(0,6).map(x=>e(x.filename+': '+x.message)).join('<br>')}</div>`:''}
 ${state.uploadSummary?.warnings?.length?`<div class="notice warn">${state.uploadSummary.warnings.slice(0,8).map(x=>e(x.filename+': '+x.message)).join('<br>')}</div>`:''}${state.retryFiles.length?'<button class="btn secondary small" id="retryIssues">重试本次失败的文件</button>':''}
-<details class="audit-log"><summary>查看导入明细（最近 300 条）</summary>${state.importRecords.map(x=>`<p>${e(fmt(x.created_at))} · ${e(x.state)} · ${e(x.filename)}${x.message?' · '+e(x.message):''}</p>`).join('')||'<p>暂无记录</p>'}</details><div class="divider"></div><div class="toolbar"><span>此任务已有 <strong>${state.task?.resume_count||0}</strong> 份简历</span><button class="btn" id="startScreening" ${(state.task?.resume_count||0)<1?'disabled':''}>开始筛选 →</button></div>
+<details class="audit-log"><summary>导入记录</summary>${state.importRecords.map(x=>`<p>${e(fmt(x.created_at))} · ${e(x.state)} · ${e(x.filename)}${x.message?' · '+e(x.message):''}</p>`).join('')||'<p>暂无记录</p>'}</details><div class="divider"></div><div class="toolbar"><span>此任务已有 <strong>${state.task?.resume_count||0}</strong> 份简历</span><button class="btn" id="startScreening" ${(state.task?.resume_count||0)<1?'disabled':''}>开始筛选 →</button></div>
 <p class="hint">筛选结果用于辅助人工审核。</p></div>`}
 function allTasks(archive=false){const records=archive==='all'?state.tasks:state.tasks.filter(t=>archive?t.archived:!t.archived);return `<div class="section-head"><div><h1>${archive?'招聘档案':'筛选任务'}</h1><p class="subtle">${archive?'所有岗位和筛选历史集中管理，支持归档与恢复。':'管理当前招聘、筛选结果和人工审核。'}</p></div><button class="btn" data-go="home">+ 新建任务</button></div><div class="task-list">${records.map(taskCard).join('')||'<div class="empty">这里暂时没有招聘任务。</div>'}</div>${!archive?`<div class="subpanel"><h2 style="margin-bottom:14px">已归档</h2><div class="task-list">${state.tasks.filter(t=>t.archived).map(taskCard).join('')||'<p class="subtle small">没有已归档的任务。</p>'}</div></div>`:''}`}
 function groupCounts(results){return ['优先查看','需要确认'].map(k=>({name:k,count:results.filter(r=>r.evaluation.group===k).length}));}
@@ -64,7 +64,7 @@ ${run?.criteria?.removed_legacy_terms?.length?`<div class="notice">已清理旧�
 <div class="subpanel"><h2>历史轮次</h2><div style="margin-top:14px">${roundsMarkup()}</div></div>${comparisonMarkup()}`}`}
 function retentionMarkup(){
  const report=state.retentionReport;if(!report)return '';
- return `<div class="notice"><strong>${report.days} 天以上的简历：${report.due_count} 份</strong><p>这是供 HR 审阅的待处理清单，并非自动删除期限。请按企业制度核对原始文件和外部备份。</p>
+ return `<div class="notice"><strong>${report.days} 天以上的简历：${report.due_count} 份</strong><p>该清单仅供检查，不会自动删除数据。</p>
  ${report.candidates.slice(0,30).map(c=>`<p>${e(c.name)} · ${e(c.filename)} · 导入于 ${e(fmt(c.imported_at))}</p>`).join('')}
  ${report.due_count>30?'<p>还有更多候选人未在此处列出，可在完整名单查看。</p>':''}</div>`;
 }
@@ -114,7 +114,7 @@ function archivePage(){
   return original+`<div class="surface subpanel"><h2>恢复加密招聘档案</h2>
     <p class="hint">导入此前创建的加密备份。恢复为独立档案，不覆盖当前记录。重启后生效。</p>
     <div class="field"><label for="restoreFile">加密备份文件</label><input type="file" id="restoreFile" accept=".hyb,application/octet-stream"></div>
-    <div class="actions" style="margin-top:12px"><input id="restorePassword" type="password" autocomplete="off" placeholder="原备份密码" aria-label="恢复密码" style="max-width:300px"><input id="restoreConfirm" placeholder="输入“恢复”确认" aria-label="恢复确认" style="max-width:180px"><button class="btn secondary" id="restoreBackup">验证并恢复（重启生效）</button></div>
+    <div class="actions" style="margin-top:12px"><input id="restorePassword" type="password" autocomplete="off" placeholder="原备份密码" aria-label="恢复密码" style="max-width:300px"><input id="restoreConfirm" placeholder="输入“恢复”确认" aria-label="恢复确认" style="max-width:180px"><button class="btn secondary" id="restoreBackup">恢复备份</button></div>
     <p class="hint">密码不保存。请妥善保管备份文件。</p>
     ${pending}${notice}${switchBack}</div><div class="surface subpanel"><h2>本地数据完整性</h2><p class="hint">检查本地招聘资料是否完整，不会修改数据。</p><button class="btn secondary small" id="checkIntegrity">检查本地数据</button>${state.diagnostics?`<p class="hint">${e(state.diagnostics.message)} · 简历 ${Number(state.diagnostics.resume_count||0)} · 缺失文件 ${Number(state.diagnostics.missing_files)} · 多余文件 ${Number(state.diagnostics.orphan_files)}</p>`:''}</div>`;
 }
@@ -160,7 +160,7 @@ async function exportExcel(){
   }
   toast('正在生成 Excel 文件');
   const response=await fetch('/api/tasks/'+taskId+'/runs/'+runId+'/export');
-  if(!response.ok)throw new Error('Excel 生成失败（'+response.status+'）');
+  if(!response.ok)throw new Error('Excel 生成失败，错误码 '+response.status+'）');
   const blob=await response.blob();
   if(blob.size<150)throw new Error('Excel 文件为空或异常');
   const buffer=await blob.slice(0,4).arrayBuffer();
