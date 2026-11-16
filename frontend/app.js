@@ -143,13 +143,16 @@ function previewPage(){
  const yearList=arr=>arr.length?arr.map(v=>e(v)+' 年').join('、'):'未提及';
  const experiences=(p.experience_mentions||[]).slice(0,12);
  const hasWarnings=doc.pages.some(page=>page.warning||page.source==='ocr');
+ const focused=state.sourceFocus?.resumeId===doc.id?state.sourceFocus:null;
+ const yearEvidence=years.map(item=>`<div class="resume-quote"><span>${item.scope==='total'?'工作年限':'具体经历年限'} · ${Number(item.years)} 年 · 第 ${Number(item.evidence?.page||1)} 页</span><p>${e(item.evidence?.excerpt||'')}</p></div>`).join('');
  return `<div class="toolbar"><button class="btn secondary" data-go="results">← 返回候选人</button></div>
  <div class="resume-header"><h1>${e(doc.name)}</h1><p class="subtle">${e(doc.filename)}</p>${doc.name_source==='unknown'?'<p class="quiet-note">姓名尚未识别，请返回候选人列表核对。</p>':''}
  <div class="resume-contact">${doc.phone?`<span>电话　${e(doc.phone)}</span>`:''}${doc.email?`<span>邮箱　${e(doc.email)}</span>`:''}</div></div>
  ${hasWarnings?'<p class="quiet-note">部分文字来自扫描识别或存在缺失，请核对内容。</p>':''}
  <div class="resume-sections">
-   <section class="surface resume-section"><h2>工作经验</h2><div class="resume-stats"><div><span>工作年限</span><strong>${yearList(totalYears)}</strong></div><div><span>岗位相关经验</span><strong>${yearList(roleYears)}</strong></div></div>
-   ${p.experience_years_conflict?'<p class="quiet-note">简历出现不同年限描述，请核对。</p>':''}
+   <section class="surface resume-section"><h2>工作经验</h2><div class="resume-stats"><div><span>工作年限</span><strong>${yearList(totalYears)}</strong></div><div><span>具体经历年限</span><strong>${yearList(roleYears)}</strong></div></div>
+   ${p.experience_years_conflict?'<p class="quiet-note">总工作年限存在不同描述，请核对。</p>':''}
+   ${yearEvidence?`<h3 class="resume-minor-heading">年限依据</h3>${yearEvidence}`:''}
    <h3 class="resume-minor-heading">经历摘录</h3>
    ${experiences.length?experiences.map(x=>`<div class="resume-quote"><span>第 ${Number(x.page||1)} 页</span><p>${e(x.excerpt)}</p></div>`).join(''):'<p class="muted-copy">未找到明确的工作经历描述。</p>'}</section>
    <section class="surface resume-section"><h2>学历</h2>${factItems((p.education_mentions||[]).slice(0,10),'未找到学历信息。')}</section>
