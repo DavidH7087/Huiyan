@@ -1,12 +1,26 @@
 const view = document.getElementById('view');
 const nav = [...document.querySelectorAll('[data-view]')];
 const state = {
-  page:'home', tasks:[], task:null, runs:[], run:null, result:null, selected:null, editingName:null,
+  page:'home', tasks:[], task:null, runs:[], run:null, result:null, selected:null, editingName:null, sourceFocus:null,
   description:'', descriptionLeads:[], required:[], preferred:[], excluded:[], matchMode:'aliases', termModes:{}, title:'', editing:false, filter:'全部', busy:false, preview:null,
   currentText:null, uploadSummary:null, importRecords:[], stagedFiles:[], retryFiles:[], historyCompare:null, retentionReport:null, diagnostics:null, reviewEvents:[], taskChanges:[], search:'', health:null, profileStatus:null, recoveryNotice:'',
 };
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const e=escapeHtml;
+function highlightedResumeText(value,excerpt=''){
+ const text=String(value||'');
+ const needle=String(excerpt||'').trim();
+ if(!needle)return e(text||'未提取到文字');
+ let start=text.indexOf(needle),len=needle.length;
+ if(start<0){
+   const fragment=needle.slice(0,Math.min(24,needle.length));
+   start=text.indexOf(fragment);len=fragment.length;
+ }
+ if(start<0)return e(text||'未提取到文字');
+ return e(text.slice(0,start))
+   +'<mark id="sourceMatch" class="source-highlight">'+e(text.slice(start,start+len))+'</mark>'
+   +e(text.slice(start+len));
+}
 const el = id=>document.getElementById(id);
 const terms = text => [...new Set(String(text||'').split(/[,，、;；\n]+/).map(s=>s.trim()).filter(Boolean))];
 const fmt = time => time ? time.replace('T',' ').slice(0,16):'';
@@ -94,7 +108,7 @@ function candidatePanel(r){
  ${r.evaluation.exclusion_flags?`<p class="quiet-note">发现 ${Number(r.evaluation.exclusion_flags)} 项排除线索，请核对具体内容。</p>`:''}
  <button class="btn secondary" data-preview="${r.resume_id}">查看简历详情</button>
  <div class="section-divider"><h3>条件匹配</h3></div>
- ${checks.map(c=>`<div class="evidence-item"><div class="toolbar" style="margin:0"><strong>${e(c.term)}</strong>${badge(c.evidence?'找到文字':c.negative_evidence?'否定表述':c.semantic_hint?'相近内容':'未找到',c.evidence?'green':'neutral')}</div>${c.evidence?`<p class="proof-source">第 ${Number(c.evidence.page)} 页</p><p class="proof-excerpt">${e(c.evidence.excerpt)}</p>`:c.negative_evidence?`<p class="proof-source">否定表述 · 第 ${Number(c.negative_evidence.page)} 页</p><p class="proof-excerpt">${e(c.negative_evidence.excerpt)}</p>`:c.semantic_hint?`<p class="proof-source">相近内容 · 第 ${Number(c.semantic_hint.page)} 页</p><p class="proof-excerpt">${e(c.semantic_hint.excerpt)}</p>`:'<p class="muted-copy">未找到直接相关的文字。</p>'}</div>`).join('')||'<p class="muted-copy">尚未设置筛选条件。</p>'}
+ ${checks.map((c,i)=>`<div class="evidence-item"><div class="toolbar" style="margin:0"><strong>${e(c.term)}</strong>${badge(c.evidence?'找到文字':c.negative_evidence?'否定表述':c.semantic_hint?'相近内容':'未找到',c.evidence?'green':'neutral')}</div>${c.evidence?`<p class="proof-source">第 ${Number(c.evidence.page)} 页</p><p class="proof-excerpt">${e(c.evidence.excerpt)}</p>`:c.negative_evidence?`<p class="proof-source">否定表述 · 第 ${Number(c.negative_evidence.page)} 页</p><p class="proof-excerpt">${e(c.negative_evidence.excerpt)}</p>`:c.semantic_hint?`<p class="proof-source">相近内容 · 第 ${Number(c.semantic_hint.page)} 页</p><p class="proof-excerpt">${e(c.semantic_hint.excerpt)}</p>`:'<p class="muted-copy">未找到直接相关的文字。</p>'}${c.evidence||c.negative_evidence||c.semantic_hint?`<button class="source-jump" data-source-resume="${r.resume_id}" data-source-index="${i}">查看原文</button>`:''}</div>`).join('')||'<p class="muted-copy">尚未设置筛选条件。</p>'}
  <div class="subpanel"><h3>审核记录</h3>${r.review_at_run?`<p class="hint">本轮创建时：${e(r.review_at_run.status)} · 当前：${e(r.review_status)}</p>`:'<p class="hint">本轮未保存早期审核状态。</p>'}
  <label for="reviewStatus">审核状态</label><select id="reviewStatus">${['未审核','加入面试名单','需要补充资料','暂不推进'].map(v=>`<option value="${e(v)}" ${v===r.review_status?'selected':''}>${e(v)}</option>`).join('')}</select>
  <label for="reviewNote">备注</label><textarea id="reviewNote" style="min-height:74px" placeholder="填写审核意见">${e(r.review_note||'')}</textarea>
@@ -129,20 +143,23 @@ function previewPage(){
  const yearList=arr=>arr.length?arr.map(v=>e(v)+' 年').join('、'):'未提及';
  const experiences=(p.experience_mentions||[]).slice(0,12);
  const hasWarnings=doc.pages.some(page=>page.warning||page.source==='ocr');
+ const focused=state.sourceFocus?.resumeId===doc.id?state.sourceFocus:null;
+ const yearEvidence=years.map(item=>`<div class="resume-quote"><span>${item.scope==='total'?'工作年限':'具体经历年限'} · ${Number(item.years)} 年 · 第 ${Number(item.evidence?.page||1)} 页</span><p>${e(item.evidence?.excerpt||'')}</p></div>`).join('');
  return `<div class="toolbar"><button class="btn secondary" data-go="results">← 返回候选人</button></div>
  <div class="resume-header"><h1>${e(doc.name)}</h1><p class="subtle">${e(doc.filename)}</p>${doc.name_source==='unknown'?'<p class="quiet-note">姓名尚未识别，请返回候选人列表核对。</p>':''}
  <div class="resume-contact">${doc.phone?`<span>电话　${e(doc.phone)}</span>`:''}${doc.email?`<span>邮箱　${e(doc.email)}</span>`:''}</div></div>
  ${hasWarnings?'<p class="quiet-note">部分文字来自扫描识别或存在缺失，请核对内容。</p>':''}
  <div class="resume-sections">
-   <section class="surface resume-section"><h2>工作经验</h2><div class="resume-stats"><div><span>工作年限</span><strong>${yearList(totalYears)}</strong></div><div><span>岗位相关经验</span><strong>${yearList(roleYears)}</strong></div></div>
-   ${p.experience_years_conflict?'<p class="quiet-note">简历出现不同年限描述，请核对。</p>':''}
+   <section class="surface resume-section"><h2>工作经验</h2><div class="resume-stats"><div><span>工作年限</span><strong>${yearList(totalYears)}</strong></div><div><span>具体经历年限</span><strong>${yearList(roleYears)}</strong></div></div>
+   ${p.experience_years_conflict?'<p class="quiet-note">总工作年限存在不同描述，请核对。</p>':''}
+   ${yearEvidence?`<h3 class="resume-minor-heading">年限依据</h3>${yearEvidence}`:''}
    <h3 class="resume-minor-heading">经历摘录</h3>
    ${experiences.length?experiences.map(x=>`<div class="resume-quote"><span>第 ${Number(x.page||1)} 页</span><p>${e(x.excerpt)}</p></div>`).join(''):'<p class="muted-copy">未找到明确的工作经历描述。</p>'}</section>
    <section class="surface resume-section"><h2>学历</h2>${factItems((p.education_mentions||[]).slice(0,10),'未找到学历信息。')}</section>
    <section class="surface resume-section"><h2>专业技能</h2>${factItems((p.skill_mentions||[]).slice(0,20),'未找到可识别的技能关键词。')}</section>
  </div>
  <section class="surface resume-section"><h2>简历文本</h2><p class="subtle small">按原文顺序展示，点击页码可展开或收起。</p>
- ${doc.pages.map((page,index)=>`<details class="resume-source" ${index===0?'open':''}><summary>第 ${Number(page.page)} 页${page.source==='ocr'?' · 扫描识别':''}</summary>${page.warning?`<p class="quiet-note">${e(page.warning)}</p>`:''}<div class="resume-text">${e(page.text||'未提取到文字')}</div></details>`).join('')}</section>`;
+ ${doc.pages.map((page,index)=>{const chosen=focused&&Number(page.page)===Number(focused.page);return `<details class="resume-source" ${chosen?'id="focusedSource"':''} ${chosen||(!focused&&index===0)?'open':''}><summary>第 ${Number(page.page)} 页${page.source==='ocr'?' · 扫描识别':''}</summary>${page.warning?`<p class="quiet-note">${e(page.warning)}</p>`:''}<div class="resume-text">${highlightedResumeText(page.text||'未提取到文字',chosen?focused.excerpt:'')}</div></details>`}).join('')}</section>`;
 }
 function render(){switch(state.page){case 'home':view.innerHTML=home();break;case 'confirm':view.innerHTML=confirm();break;case 'import':view.innerHTML=importPage();break;case 'tasks':view.innerHTML=allTasks();break;case 'archive':view.innerHTML=archivePage();break;case 'results':view.innerHTML=resultsPage();break;case 'preview':view.innerHTML=previewPage();break;default:view.innerHTML=home();}}
 async function showTask(taskId,asArchive=false){state.task=await api(`/api/tasks/${taskId}`);state.runs=await api(`/api/tasks/${taskId}/runs`);state.reviewEvents=await api(`/api/tasks/${taskId}/review-history`);state.taskChanges=await api(`/api/tasks/${taskId}/changes`);state.historyCompare=null;state.retentionReport=null;state.run=state.runs[0]||null;state.selected=null;state.filter='全部';state.search='';if(state.run){if(asArchive){state.result=await api(`/api/tasks/${taskId}/runs/${state.run.id}/results`);setPage('archive')}else await showRun(state.run.id)}else setPage(asArchive?'archive':'results')}
@@ -241,6 +258,19 @@ view.addEventListener('click',ev=>withBusy(async()=>{
   }
   if(target.dataset.run){await showRun(Number(target.dataset.run));return;}
   if(target.dataset.candidate){state.selected=Number(target.dataset.candidate);state.editingName=null;render();return;}
+  if(target.dataset.sourceIndex!==undefined){
+    const resumeId=Number(target.dataset.sourceResume);
+    const position=Number(target.dataset.sourceIndex);
+    const resume=state.result?.results.find(item=>item.resume_id===resumeId);
+    const check=resume?.evaluation?.checks?.[position];
+    const source=check?.evidence||check?.negative_evidence||check?.semantic_hint;
+    if(!resume||!source){toast('找不到对应原文');return}
+    state.preview=await api(`/api/tasks/${state.task.id}/resumes/${resumeId}`);
+    state.sourceFocus={resumeId,page:Number(source.page),excerpt:String(source.excerpt||'')};
+    setPage('preview');
+    requestAnimationFrame(()=>{(el('sourceMatch')||el('focusedSource'))?.scrollIntoView({block:'center',behavior:'smooth'})});
+    return;
+  }
   if(target.dataset.editName){state.editingName=Number(target.dataset.editName);render();el('candidateNameInput')?.focus();return;}
   if(target.id==='cancelEditName'){state.editingName=null;render();return;}
   if(target.dataset.saveName){
@@ -322,7 +352,7 @@ view.addEventListener('click',ev=>withBusy(async()=>{
     toast(response.files_pending_cleanup?'记录已删除，但部分本地文件清理失败，请联系管理员':'任务与简历已彻底删除');return;
   }
   if(target.id==='toggleArchive'){state.task=await patch(`/api/tasks/${state.task.id}`,{archived:!state.task.archived});await fetchTasks();render();toast(state.task.archived?'任务已归档':'任务已恢复');return;}
-  if(target.dataset.preview){state.preview=await api(`/api/tasks/${state.task.id}/resumes/${target.dataset.preview}`);setPage('preview');return;}
+  if(target.dataset.preview){state.sourceFocus=null;state.preview=await api(`/api/tasks/${state.task.id}/resumes/${target.dataset.preview}`);setPage('preview');return;}
   if(target.dataset.deleteCandidate){
     const filename=target.dataset.filename;
     const confirmation=window.prompt('将删除这位候选人的原始文件、审核记录和所有历史筛选中的对应结果。请输入完整文件名确认：'+filename);

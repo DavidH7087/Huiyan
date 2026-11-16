@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 
-PROFILE_VERSION = 'rules-v2'
+PROFILE_VERSION = 'rules-v3'
 DEGREES = ('博士', '硕士', '研究生', '本科', '学士', '大专', '专科')
 SKILLS = (
     'Python', 'Java', 'JavaScript', 'TypeScript', 'SQL', 'Excel', 'Power BI',
@@ -29,6 +29,31 @@ def _evidence(page: dict, line: str) -> dict:
             'excerpt': _snippet(line), 'needs_verification': page.get('source') == 'ocr'}
 
 
+def _negated_fact(clause: str, value: str) -> bool:
+    """Do not report an explicitly denied qualification as a positive fact."""
+    lower=clause.casefold()
+    position=lower.find(value.casefold())
+    if position < 0:
+        return False
+    prefix=lower[max(0,position-24):position]
+    suffix=lower[position+len(value):position+len(value)+12]
+    negation=(r'(?:没有|从未|未曾|尚无|不具备|缺少|缺乏|不熟悉|不会|'
+              r'未使用|没用过|未掌握|未取得|未接触|未学习|未完成|'
+              r'未获得|无相关|无)\s*[\w\s]{0,14}$')
+    return bool(re.search(negation,prefix,re.I)) or bool(
+        re.match(r'(?:学历)?(?:未毕业|未取得|肄业)',suffix))
+
+
+def _is_requirement(line: str, offset: int) -> bool:
+    """A requested qualification on a resume is not possessed experience."""
+    prefix=line[max(0,offset-26):offset]
+    return bool(re.search(
+        r'(?:岗位要求|职位要求|招聘要求|任职要求|申请要求|'
+        r'至少需要|要求至少|需要至少|需要有|必须有|须有|'
+        r'没有|未有|不具备|不足|缺少|没有达到|尚未达到)'
+        r'[^。；;，,\n]{0,14}$',prefix))
+
+
 def extract_profile(pages: list[dict]) -> dict:
     """Extract only explicitly mentioned facts, storing traceable evidence."""
     education, skills, experiences, years = [], [], [], []
@@ -41,14 +66,24 @@ def extract_profile(pages: list[dict]) -> dict:
             if not line:
                 continue
             quote = _evidence(page, line)
-            for degree in DEGREES:
-                if degree in line and degree not in seen_degrees:
-                    education.append({'label': degree, 'evidence': quote})
-                    seen_degrees.add(degree)
-            for skill in SKILLS:
-                if skill.lower() not in seen_skills and _contains_skill(line, skill):
-                    skills.append({'label': skill, 'evidence': quote})
-                    seen_skills.add(skill.lower())
+            for clause in re.split(r'[，,；;。！!]|(?:但是|但|不过)', line):
+                if not clause.strip():
+                    continue
+                fact_quote=_evidence(page,clause)
+                for degree in DEGREES:
+                    if (degree in clause and degree not in seen_degrees
+                            and not _negated_fact(clause,degree)
+                            and not _is_requirement(clause,clause.find(degree))):
+                        education.append({'label':degree,'evidence':fact_quote})
+                        seen_degrees.add(degree)
+                for skill in SKILLS:
+                    if (skill.lower() not in seen_skills
+                            and _contains_skill(clause,skill)
+                            and not _negated_fact(clause,skill)
+                            and not _is_requirement(
+                                clause,clause.casefold().find(skill.casefold()))):
+                        skills.append({'label':skill,'evidence':fact_quote})
+                        seen_skills.add(skill.lower())
             if any(marker in line for marker in EXPERIENCE_MARKERS) and quote['excerpt'] not in seen_experiences:
                 if len(experiences) < 12:
                     experiences.append(quote)
@@ -56,7 +91,7 @@ def extract_profile(pages: list[dict]) -> dict:
             # An explicit skill-specific tenure is not necessarily total employment.
             spans = set()
             patterns = (
-                (r'(?<!\d)(\d{1,2})\s*年(?:以上|左右|多)?(?:相关)?工作经验', 'total'),
+                (r'(?<!\d)(\d{1,2})\s*年(?:以上|左右|多)?(?:的)?\s*(?:相关)?工作经验', 'total'),
                 (r'(?:相关)?工作经验\s*(\d{1,2})\s*年', 'total'),
                 (r'(?<!\d)(\d{1,2})\s*年(?:以上|左右|多)?[^。；;，,\n]{0,36}?(?:经验|经历)', 'specific'),
             )
@@ -70,14 +105,14 @@ def extract_profile(pages: list[dict]) -> dict:
                             start <= span[0] and end >= span[1]
                             for start, end in spans):
                         continue
-                    prefix = line[max(0, match.start()-12):match.start()]
-                    if re.search(r'(?:没有|未有|不具备|不足|缺少|要求至少|须有)$', prefix):
+                    if _is_requirement(line,match.start()):
                         continue
                     if scope == 'specific' and not any(x in match.group(0) for x in
                             ('销售','客户','开发','管理','工作','项目','技术','招聘',
                              '财务','运营','设计','采购','市场','产品','服务','经验')):
                         continue
-                    years.append({'years':value,'scope':scope,'evidence':quote})
+                    years.append({'years':value,'scope':scope,'evidence':quote,
+                                  'context':_snippet(match.group(0))})
                     spans.add(span)
     # Different statements may conflict; do not choose a "true" duration.
     unique_years = sorted({item['years'] for item in years})
@@ -88,7 +123,7 @@ def extract_profile(pages: list[dict]) -> dict:
         'experience_mentions': experiences,
         'stated_experience_years': unique_years,
         'experience_duration_mentions': years,
-        'experience_years_conflict': len(unique_years) > 1,
+        'experience_years_conflict': len({item['years'] for item in years if item['scope']=='total'}) > 1,
         'needs_source_review': needs_review,
         'disclaimer': '仅从简历文字提取线索，不代表学历、技能或年限已经核实。',
     }

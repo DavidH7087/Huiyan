@@ -8,6 +8,13 @@ on:
       - 'backend/engine.py'
       - 'backend/parsing.py'
       - '.github/workflows/synthetic-corpus.yml'
+  pull_request:
+    paths:
+      - 'testdata/synthetic/**'
+      - 'backend/app.py'
+      - 'backend/parsing.py'
+      - 'backend/profile.py'
+      - '.github/workflows/synthetic-corpus.yml'
   workflow_dispatch:
 jobs:
   synthetic-corpus:
