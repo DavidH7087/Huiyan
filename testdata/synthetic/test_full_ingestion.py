@@ -4,6 +4,7 @@ Runs explicitly in Synthetic Corpus CI. Never uploads personal documents.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 
@@ -53,9 +54,15 @@ def test_all_120_docx_and_120_pdf_through_real_hr_api(tmp_path):
         one = records.json()[0]
         detail = client.get(f'/api/tasks/{tid}/resumes/{one["id"]}').json()
         assert any(p['text'].strip() for p in detail['pages'])
-        original = client.get(f'/api/tasks/{tid}/resumes/{one["id"]}/original')
-        assert original.status_code == 200
-        assert original.content
+        # Source files are retained privately for backups, not exposed by HTTP.
+        with app.state.store.connect() as db:
+            stored=db.execute(
+                'SELECT stored_file,content_hash FROM resumes WHERE task_id=? AND id=?',
+                (tid,one['id'])).fetchone()
+        original=app.state.store.root/'uploads'/stored['stored_file']
+        assert original.is_file()
+        assert hashlib.sha256(original.read_bytes()).hexdigest()==stored['content_hash']
+        assert client.get(f'/api/tasks/{tid}/resumes/{one["id"]}/original').status_code==404
         run = client.post(f'/api/tasks/{tid}/runs', json={'name': '多格式筛选验收'})
         assert run.status_code == 200, run.text
         results = client.get(f'/api/tasks/{tid}/runs/{run.json()["id"]}/results')
