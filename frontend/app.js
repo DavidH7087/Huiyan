@@ -159,7 +159,7 @@ function previewPage(){
    <section class="surface resume-section"><h2>专业技能</h2>${factItems((p.skill_mentions||[]).slice(0,20),'未找到可识别的技能关键词。')}</section>
  </div>
  <section class="surface resume-section"><h2>简历文本</h2><p class="subtle small">按原文顺序展示，点击页码可展开或收起。</p>
- ${doc.pages.map((page,index)=>`<details class="resume-source" ${index===0?'open':''}><summary>第 ${Number(page.page)} 页${page.source==='ocr'?' · 扫描识别':''}</summary>${page.warning?`<p class="quiet-note">${e(page.warning)}</p>`:''}<div class="resume-text">${e(page.text||'未提取到文字')}</div></details>`).join('')}</section>`;
+ ${doc.pages.map((page,index)=>{const chosen=focused&&Number(page.page)===Number(focused.page);return `<details class="resume-source" ${chosen?'id="focusedSource"':''} ${chosen||(!focused&&index===0)?'open':''}><summary>第 ${Number(page.page)} 页${page.source==='ocr'?' · 扫描识别':''}</summary>${page.warning?`<p class="quiet-note">${e(page.warning)}</p>`:''}<div class="resume-text">${highlightedResumeText(page.text||'未提取到文字',chosen?focused.excerpt:'')}</div></details>`}).join('')}</section>`;
 }
 function render(){switch(state.page){case 'home':view.innerHTML=home();break;case 'confirm':view.innerHTML=confirm();break;case 'import':view.innerHTML=importPage();break;case 'tasks':view.innerHTML=allTasks();break;case 'archive':view.innerHTML=archivePage();break;case 'results':view.innerHTML=resultsPage();break;case 'preview':view.innerHTML=previewPage();break;default:view.innerHTML=home();}}
 async function showTask(taskId,asArchive=false){state.task=await api(`/api/tasks/${taskId}`);state.runs=await api(`/api/tasks/${taskId}/runs`);state.reviewEvents=await api(`/api/tasks/${taskId}/review-history`);state.taskChanges=await api(`/api/tasks/${taskId}/changes`);state.historyCompare=null;state.retentionReport=null;state.run=state.runs[0]||null;state.selected=null;state.filter='全部';state.search='';if(state.run){if(asArchive){state.result=await api(`/api/tasks/${taskId}/runs/${state.run.id}/results`);setPage('archive')}else await showRun(state.run.id)}else setPage(asArchive?'archive':'results')}
@@ -258,6 +258,19 @@ view.addEventListener('click',ev=>withBusy(async()=>{
   }
   if(target.dataset.run){await showRun(Number(target.dataset.run));return;}
   if(target.dataset.candidate){state.selected=Number(target.dataset.candidate);state.editingName=null;render();return;}
+  if(target.dataset.sourceIndex!==undefined){
+    const resumeId=Number(target.dataset.sourceResume);
+    const position=Number(target.dataset.sourceIndex);
+    const resume=state.result?.results.find(item=>item.resume_id===resumeId);
+    const check=resume?.evaluation?.checks?.[position];
+    const source=check?.evidence||check?.negative_evidence||check?.semantic_hint;
+    if(!resume||!source){toast('找不到对应原文');return}
+    state.preview=await api(`/api/tasks/${state.task.id}/resumes/${resumeId}`);
+    state.sourceFocus={resumeId,page:Number(source.page),excerpt:String(source.excerpt||'')};
+    setPage('preview');
+    requestAnimationFrame(()=>{(el('sourceMatch')||el('focusedSource'))?.scrollIntoView({block:'center',behavior:'smooth'})});
+    return;
+  }
   if(target.dataset.editName){state.editingName=Number(target.dataset.editName);render();el('candidateNameInput')?.focus();return;}
   if(target.id==='cancelEditName'){state.editingName=null;render();return;}
   if(target.dataset.saveName){
@@ -339,7 +352,7 @@ view.addEventListener('click',ev=>withBusy(async()=>{
     toast(response.files_pending_cleanup?'记录已删除，但部分本地文件清理失败，请联系管理员':'任务与简历已彻底删除');return;
   }
   if(target.id==='toggleArchive'){state.task=await patch(`/api/tasks/${state.task.id}`,{archived:!state.task.archived});await fetchTasks();render();toast(state.task.archived?'任务已归档':'任务已恢复');return;}
-  if(target.dataset.preview){state.preview=await api(`/api/tasks/${state.task.id}/resumes/${target.dataset.preview}`);setPage('preview');return;}
+  if(target.dataset.preview){state.sourceFocus=null;state.preview=await api(`/api/tasks/${state.task.id}/resumes/${target.dataset.preview}`);setPage('preview');return;}
   if(target.dataset.deleteCandidate){
     const filename=target.dataset.filename;
     const confirmation=window.prompt('将删除这位候选人的原始文件、审核记录和所有历史筛选中的对应结果。请输入完整文件名确认：'+filename);
