@@ -116,12 +116,14 @@ def get_run(cn,task_id,run_id):
 
 
 
-def clean_reused_criteria(snapshot:dict, job_description:str) -> dict:
+def clean_reused_criteria(snapshot:dict, job_description:str,
+                          active_required:list[str]|None=None) -> dict:
     """Prepare NEW rounds from old criteria without changing historical snapshots.
 
     Earlier versions sometimes promoted the *verb* 招聘 from '招聘B2B销售'
-    to a preferred ability. Only a clearly irrelevant optional reference
-    is dropped; explicit mandatory criteria are never silently removed.
+    to a candidate skill. A hard requirement is only removed if the old
+    automatic clues explicitly prove that source and it is absent from
+    the currently confirmed mandatory criteria. All changes are reported.
     """
     suggested=suggest_conditions(job_description or '')
     genuine_recruiter_skill='招聘' in (suggested['required']+suggested['preferred'])
@@ -139,6 +141,15 @@ def clean_reused_criteria(snapshot:dict, job_description:str) -> dict:
     explicit_optional=list(snapshot.get('task_preferred',[]))
     raw_description=list(snapshot.get('description_leads',[]))
     raw_supplementary=list(snapshot.get('supplementary_leads',[]))
+    # Old parsing bugs also inserted 招聘 into *required* before HR corrected
+    # the task. Do not override a deliberately configured current requirement.
+    invalid_old_required=(stale_recruitment and
+        '招聘' in (raw_description+raw_supplementary) and
+        active_required is not None and '招聘' not in active_required)
+    removed_required=[term for term in original_required
+                      if invalid_old_required and term.strip()=='招聘']
+    original_required=[term for term in original_required
+                       if not (invalid_old_required and term.strip()=='招聘')]
     normalized_description=expand_description_leads(raw_description)
     normalized_supplementary=expand_description_leads(raw_supplementary)
     # Keep an explicitly chosen HR-recruitment requirement, not a generic
@@ -149,7 +160,7 @@ def clean_reused_criteria(snapshot:dict, job_description:str) -> dict:
         if '招聘' in raw_supplementary:
             normalized_supplementary.append('招聘')
     combined=[*explicit_optional,*normalized_description,*normalized_supplementary,*legacy_optional]
-    removed=[term for term in combined if not retain(term)]
+    removed=[*removed_required,*[term for term in combined if not retain(term)]]
     filtered=[term for term in combined if retain(term)]
     required,preferred=dedupe_conditions(original_required,filtered)
     return {
@@ -593,7 +604,8 @@ def create_app(data_dir:Path|None=None):
             current=get_task(cn,task_id)
             run=get_run(cn,task_id,run_id)
             snapshot=json.loads(run['criteria_json'])
-            cleaned=clean_reused_criteria(snapshot,current['description'])
+            cleaned=clean_reused_criteria(snapshot,current['description'],
+                                          current['required'])
             prior=task_audit_snapshot(current)
             # Only explicitly configured preferred terms become persistent task
             # settings; temporary lead suggestions remain reference-only.
@@ -749,7 +761,8 @@ def create_app(data_dir:Path|None=None):
             old=get_run(cn,task_id,run_id)
             task=get_task(cn,task_id)
             original=json.loads(old['criteria_json'])
-            cleaned=clean_reused_criteria(original,task['description'])
+            cleaned=clean_reused_criteria(original,task['description'],
+                                          task['required'])
             required=cleaned['required']
             preferred=cleaned['preferred']
             excluded=cleaned.get('excluded',[])
