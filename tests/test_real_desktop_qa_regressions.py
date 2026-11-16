@@ -79,7 +79,7 @@ def test_distinct_textual_skills_count_once_even_with_legacy_clues():
 def test_skills_years_are_distinguished_from_total_work_years():
     profile=extract_profile([{'page':1,'source':'txt',
                              'text':'工作经历：5年B2B销售与企业客户开发经验'}])
-    assert PROFILE_VERSION == 'rules-v2'
+    assert PROFILE_VERSION == 'rules-v3'
     assert profile['stated_experience_years'] == [5]
     assert any(item['years']==5 and item['scope']=='specific'
                for item in profile['experience_duration_mentions'])
