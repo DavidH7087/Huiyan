@@ -1,12 +1,26 @@
 const view = document.getElementById('view');
 const nav = [...document.querySelectorAll('[data-view]')];
 const state = {
-  page:'home', tasks:[], task:null, runs:[], run:null, result:null, selected:null, editingName:null,
+  page:'home', tasks:[], task:null, runs:[], run:null, result:null, selected:null, editingName:null, sourceFocus:null,
   description:'', descriptionLeads:[], required:[], preferred:[], excluded:[], matchMode:'aliases', termModes:{}, title:'', editing:false, filter:'全部', busy:false, preview:null,
   currentText:null, uploadSummary:null, importRecords:[], stagedFiles:[], retryFiles:[], historyCompare:null, retentionReport:null, diagnostics:null, reviewEvents:[], taskChanges:[], search:'', health:null, profileStatus:null, recoveryNotice:'',
 };
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const e=escapeHtml;
+function highlightedResumeText(value,excerpt=''){
+ const text=String(value||'');
+ const needle=String(excerpt||'').trim();
+ if(!needle)return e(text||'未提取到文字');
+ let start=text.indexOf(needle),len=needle.length;
+ if(start<0){
+   const fragment=needle.slice(0,Math.min(24,needle.length));
+   start=text.indexOf(fragment);len=fragment.length;
+ }
+ if(start<0)return e(text||'未提取到文字');
+ return e(text.slice(0,start))
+   +'<mark id="sourceMatch" class="source-highlight">'+e(text.slice(start,start+len))+'</mark>'
+   +e(text.slice(start+len));
+}
 const el = id=>document.getElementById(id);
 const terms = text => [...new Set(String(text||'').split(/[,，、;；\n]+/).map(s=>s.trim()).filter(Boolean))];
 const fmt = time => time ? time.replace('T',' ').slice(0,16):'';
