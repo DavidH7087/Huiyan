@@ -13,8 +13,14 @@ function highlightedResumeText(value,excerpt=''){
  if(!needle)return e(text||'未提取到文字');
  let start=text.indexOf(needle),len=needle.length;
  if(start<0){
-   const fragment=needle.slice(0,Math.min(24,needle.length));
-   start=text.indexOf(fragment);len=fragment.length;
+   // Combined work-history excerpts join lines with "；"; the underlying
+   // extracted CV still has newlines. Locate an actual source clause instead.
+   const clauses=needle.split(/[；;\n]+/).map(x=>x.trim()).filter(Boolean);
+   for(const clause of clauses){
+     const fragment=clause.slice(0,Math.min(36,clause.length));
+     const found=text.indexOf(fragment);
+     if(found>=0){start=found;len=fragment.length;break}
+   }
  }
  if(start<0)return e(text||'未提取到文字');
  return e(text.slice(0,start))
