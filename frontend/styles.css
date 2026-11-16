@@ -52,3 +52,9 @@
 .resume-source[open] summary{border-bottom:1px solid var(--line)}
 .resume-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.95;padding:16px 0 20px;color:#344e56}
 @media(max-width:760px){.resume-sections{grid-template-columns:1fr}.resume-sections .resume-section:first-child{grid-column:auto}.resume-contact{gap:8px;flex-direction:column}.person-panel-head{flex-wrap:wrap}}
+
+/* Evidence is useful only if HR can find and read the source text. */
+.source-jump{display:inline-flex;align-items:center;margin-top:9px;padding:5px 0;border:0;background:none;color:var(--accent-dark);font-size:12px;font-weight:600;cursor:pointer}
+.source-jump:hover{text-decoration:underline}
+#focusedSource{scroll-margin-top:28px;border-color:#8bbbad}
+.source-highlight{background:#e4eee7;border-radius:2px;box-decoration-break:clone;padding:1px 2px;color:inherit}
