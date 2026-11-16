@@ -187,3 +187,94 @@ def test_basic_hr_workflow_in_chromium(tmp_path):
         except subprocess.TimeoutExpired:
             server.kill()
             server.wait(timeout=5)
+
+
+
+def test_technology_experience_groups_multiple_sources_in_chromium(tmp_path):
+    """Industry work must appear ahead of projects and education in a real UI."""
+    from fastapi.testclient import TestClient
+    from backend.app import create_app
+
+    data=tmp_path/'industry-ui-data'
+    with TestClient(create_app(data)) as client:
+        task=client.post('/api/tasks',json={
+            'title':'科技领域复核','preferred':['科技行业经验']
+        }).json()
+        prefix=f'/api/tasks/{task["id"]}'
+        document="""教育背景
+2023-2027 某大学计算机科学本科
+主修课程
+软件工程、数据库
+实习经历
+2025.7 某工业企业 IT实习生
+使用 SQL 参与产品数据分析和优化。
+2026.7 深圳某智能驾驶科技公司 无人车产品实习生
+负责无人车产品设计，推动厂商项目落地。
+项目经历
+MicroBit 嵌入式系统项目
+参与传感器与程序调试。
+"""
+        response=client.post(prefix+'/resumes',files=[
+            ('files',('fictional-industry.txt',document.encode('utf-8'),'text/plain'))
+        ])
+        assert response.json()['imported']==1
+        created=client.post(prefix+'/runs',json={'name':'行业工作经验'}).json()
+        assert created['candidate_count']==1
+
+    with socket.socket() as free:
+        free.bind(('127.0.0.1',0))
+        port=free.getsockname()[1]
+    env=os.environ.copy()
+    env.update({
+        'HUIYAN_DATA_DIR':str(data),
+        'HUIYAN_OCR_ENABLED':'0',
+        'HUIYAN_DESKTOP_MODE':'1',
+        'HUIYAN_SESSION_TOKEN':'fictional-industry-session-token'
+    })
+    server=subprocess.Popen(
+        [sys.executable,'-m','uvicorn','backend.app:app','--host','127.0.0.1',
+         '--port',str(port),'--log-level','error'],
+        env=env,cwd=str(ROOT),stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL
+    )
+    try:
+        for _ in range(100):
+            if server.poll() is not None:
+                pytest.fail('Industry UI server failed to start')
+            try:
+                with urlopen(f'http://127.0.0.1:{port}/api/health',timeout=0.3) as response:
+                    if response.status==200:break
+            except (URLError,TimeoutError):
+                time.sleep(0.1)
+        else:
+            pytest.fail('Industry UI server did not become healthy')
+        with sync_playwright() as p:
+            browser=p.chromium.launch(headless=True)
+            page=browser.new_page(viewport={'width':1360,'height':900})
+            try:
+                page.goto(f'http://127.0.0.1:{port}/?session=fictional-industry-session-token',
+                          wait_until='networkidle')
+                page.locator('nav [data-view="tasks"]').click()
+                page.locator(f'[data-task="{task["id"]}"]').click()
+                page.locator('.candidate-row').first.click()
+                item=page.locator('.evidence-item').filter(has_text='科技行业经验')
+                item.get_by_text('行业工作经历').wait_for()
+                assert item.locator('[data-source-kind="text"]').count()==2
+                assert item.locator('[data-source-kind="project"]').count()==1
+                assert item.locator('[data-source-kind="education"]').count()==1
+                snippets=item.locator('.evidence-group .proof-excerpt').all_inner_texts()
+                assert '无人车' in snippets[0]
+                assert 'IT实习生' in snippets[1]
+                item.locator('[data-source-kind="text"]').nth(1).click()
+                page.get_by_role('heading',name='简历文本').wait_for()
+                assert page.locator('#focusedSource[open]').count()==1
+                assert page.locator('#sourceMatch').count()==1
+                assert 'IT' in page.locator('#sourceMatch').inner_text()
+            finally:
+                browser.close()
+    finally:
+        server.terminate()
+        try:
+            server.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            server.kill()
+            server.wait(timeout=5)
