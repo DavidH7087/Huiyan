@@ -155,3 +155,35 @@ def test_docx_textbox_retains_both_technology_internships():
     assert len(matches)==2
     assert '无人车' in matches[0]['excerpt']
     assert all(m['section']=='work' for m in matches)
+
+
+def test_semantic_search_retains_three_independent_reviewable_passages():
+    class ConstantEncoder:
+        def encode(self,strings,**kwargs):
+            return [[1.0,0.0] for _ in strings]
+    matcher=SemanticMatcher(ConstantEncoder(),minimum_similarity=0.0)
+    pages=[{'page':3,'text':"""工作经历
+协助生产企业客户进行渠道规划和设备配置
+定期走访工厂采购负责人了解工业设备需求
+为工业客户开展产品交付与售后协调
+另外负责服务部门的日常数据报表
+"""}]
+    findings=matcher.search_many_candidates(['企业客户经验'],pages)
+    assert len(findings['企业客户经验'])==3
+    assert len({p['excerpt'] for p in findings['企业客户经验']})==3
+    assert all(p['page']==3 for p in findings['企业客户经验'])
+    assert matcher.search_many(['企业客户经验'],pages)['企业客户经验']==findings['企业客户经验'][0]
+    evaluation=evaluate(['企业客户经验'],[],pages,semantic_matcher=matcher)
+    check=evaluation['checks'][0]
+    assert len(check['semantic_hints'])==3
+    assert check['semantic_hint']==check['semantic_hints'][0]
+    assert evaluation['matched_count']==0
+    assert evaluation['group']=='需要确认'
+
+
+def test_exact_mode_disables_industry_inference():
+    pages=[{'page':1,'text':FICTIONAL_RESUME}]
+    evaluation=evaluate([],['科技行业经验'],pages,term_modes={'科技行业经验':'exact'})
+    check=evaluation['checks'][0]
+    assert check['evidence_matches']==[]
+    assert evaluation['matched_count']==0
