@@ -57,13 +57,14 @@ def _negated_fact(clause: str, value: str) -> bool:
                     continue
                 fact_quote = _evidence(page, clause)
                 for degree in DEGREES:
-                    if degree in clause and degree not in seen_degrees and not _negated_fact(clause, degree):
+                    if degree in clause and degree not in seen_degrees and not _negated_fact(clause, degree) and not _is_requirement(clause, clause.find(degree)):
                         education.append({'label': degree, 'evidence': fact_quote})
                         seen_degrees.add(degree)
                 for skill in SKILLS:
                     if (skill.lower() not in seen_skills
                             and _contains_skill(clause, skill)
-                            and not _negated_fact(clause, skill)):
+                            and not _negated_fact(clause, skill)
+                            and not _is_requirement(clause, clause.casefold().find(skill.casefold()))):
                         skills.append({'label': skill, 'evidence': fact_quote})
                         seen_skills.add(skill.lower())
             if any(marker in line for marker in EXPERIENCE_MARKERS) and quote['excerpt'] not in seen_experiences:
@@ -73,7 +74,7 @@ def _negated_fact(clause: str, value: str) -> bool:
             # An explicit skill-specific tenure is not necessarily total employment.
             spans = set()
             patterns = (
-                (r'(?<!\d)(\d{1,2})\s*年(?:以上|左右|多)?(?:相关)?工作经验', 'total'),
+                (r'(?<!\d)(\d{1,2})\s*年(?:以上|左右|多)?(?:的)?\s*(?:相关)?工作经验', 'total'),
                 (r'(?:相关)?工作经验\s*(\d{1,2})\s*年', 'total'),
                 (r'(?<!\d)(\d{1,2})\s*年(?:以上|左右|多)?[^。；;，,\n]{0,36}?(?:经验|经历)', 'specific'),
             )
