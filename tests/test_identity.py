@@ -10,7 +10,8 @@ def test_labelled_name_and_spaced_phone():
 
 def test_title_is_not_a_person():
     out=extract_identity([{'page':1,'text':'个人简历\n应聘职位：财务专员'}],'周某-财务.txt')
-    assert out['name']=='周某-财务'
+    assert out['name']=='姓名待确认'
+    assert out['name_source']=='unknown'
 
 
 def test_simple_chinese_name_still_works():
